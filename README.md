@@ -11,6 +11,7 @@ A MERN app to record daily income and expenses, sort them into categories, and s
 ## Features
 - Accounts with login: register, log in, edit profile, change password, delete account (each user sees only their own data)
 - Accounts and cards (bank, cash, wallet, credit or debit card) with computed balances and credit utilisation; link transactions to an account
+- Plan page: overall and per-category budgets with progress, savings goals with contributions, and bill reminders (mark paid records the expense and rolls monthly bills forward)
 - Add, edit and delete transactions (amount, income or expense, category, date, payment method, optional note)
 - View transactions for any month, newest first
 - Monthly summary: total income, total expense and balance, computed with MongoDB aggregation
@@ -87,6 +88,9 @@ Base URL: `/api`. All errors return `{ "error": "message" }`. Transaction endpoi
 | POST | `/accounts` | Create account or card (last 4 digits only) | 201 | 400, 409 |
 | PUT | `/accounts/:id` | Update account | 200 | 400, 404, 409 |
 | DELETE | `/accounts/:id` | Delete account, keep its transactions | 200 | 400, 404 |
+| GET, POST, PUT, DELETE | `/budgets` | Overall and per-category monthly budgets | 200/201 | 400, 404, 409 |
+| GET, POST, PUT, DELETE | `/goals` | Savings goals; `POST /goals/:id/contribute` adds or withdraws | 200/201 | 400, 404 |
+| GET, POST, PUT, DELETE | `/reminders` | Bills; `POST /reminders/:id/pay` records the expense | 200/201 | 400, 404 |
 
 | Method | Endpoint | Purpose | Success | Errors |
 |---|---|---|---|---|

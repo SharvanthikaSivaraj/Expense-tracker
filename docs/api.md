@@ -48,6 +48,31 @@ Transactions accept an optional `account` id (or `null`). `GET /api/transactions
 
 ---
 
+## Budgets, goals and bills
+
+All require a token and are private to the user.
+
+| Method | Endpoint | Body / purpose | Success | Errors |
+|---|---|---|---|---|
+| GET | `/api/budgets` | List budgets | 200 | 401 |
+| POST | `/api/budgets` | `{ category, limit }`, `category` is an expense category or `ALL` (overall) | 201 | 400, 409 exists |
+| PUT | `/api/budgets/:id` | `{ limit }` | 200 | 400, 404 |
+| DELETE | `/api/budgets/:id` | Remove | 200 | 400, 404 |
+| GET | `/api/goals` | List savings goals | 200 | 401 |
+| POST | `/api/goals` | `{ name, target, saved?, deadline? }` | 201 | 400 |
+| PUT | `/api/goals/:id` | Same fields, empty `deadline` clears it | 200 | 400, 404 |
+| POST | `/api/goals/:id/contribute` | `{ amount }`, negative withdraws, saved never below 0 | 200 | 400, 404 |
+| DELETE | `/api/goals/:id` | Remove | 200 | 400, 404 |
+| GET | `/api/reminders` | List bills, unpaid first by due date | 200 | 401 |
+| POST | `/api/reminders` | `{ title, amount, dueDate, repeat: none/monthly, category }` | 201 | 400 |
+| PUT | `/api/reminders/:id` | Same fields | 200 | 400, 404 |
+| POST | `/api/reminders/:id/pay` | `{ paymentMethod?, account? }` records an expense; monthly bills roll to next month, one-off bills are marked paid | 200 `{ reminder, transaction }` | 400, 404 |
+| DELETE | `/api/reminders/:id` | Remove | 200 | 400, 404 |
+
+Budget progress is computed on the client from the monthly summary (`byCategory`).
+
+---
+
 ## 1. GET /api/transactions?month=2026-10
 List transactions for a month, newest first. If `month` is omitted, returns all.
 
