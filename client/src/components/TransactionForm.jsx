@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { CATEGORIES, PAYMENT_METHODS, toInputDate } from '../constants';
+import { useEffect, useRef, useState } from 'react';
+import { categoryMeta, CATEGORIES, PAYMENT_METHODS, toInputDate } from '../constants';
+import Icon from './Icon';
 
-function initialValues(transaction, defaultDate) {
+function initialValues(transaction, defaultDate, defaultType = 'expense') {
   if (transaction) {
     return {
       amount: String(transaction.amount),
@@ -12,7 +13,7 @@ function initialValues(transaction, defaultDate) {
       note: transaction.note || '',
     };
   }
-  return { amount: '', type: 'expense', category: '', date: defaultDate, paymentMethod: 'upi', note: '' };
+  return { amount: '', type: defaultType, category: '', date: defaultDate, paymentMethod: 'upi', note: '' };
 }
 
 function validate(v) {
@@ -25,14 +26,20 @@ function validate(v) {
   return errors;
 }
 
-export default function TransactionForm({ transaction, defaultDate, onSave, onCancel }) {
-  const [values, setValues] = useState(() => initialValues(transaction, defaultDate));
+export default function TransactionForm({ transaction, defaultDate, defaultType, onSave, onCancel }) {
+  const [values, setValues] = useState(() => initialValues(transaction, defaultDate, defaultType));
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState('');
   const [saving, setSaving] = useState(false);
+  const amountRef = useRef(null);
   const editing = Boolean(transaction);
 
+  useEffect(() => {
+    amountRef.current?.focus();
+  }, []);
+
   const set = (field) => (e) => setValues((v) => ({ ...v, [field]: e.target.value }));
+  const pick = (field, value) => setValues((v) => ({ ...v, [field]: value }));
 
   const setType = (type) =>
     setValues((v) => ({ ...v, type, category: CATEGORIES[type].includes(v.category) ? v.category : '' }));
@@ -47,24 +54,21 @@ export default function TransactionForm({ transaction, defaultDate, onSave, onCa
     setSaving(true);
     try {
       await onSave({ ...values, amount: Number(values.amount), note: values.note.trim() });
-      if (!editing) setValues(initialValues(null, values.date));
     } catch (err) {
       setServerError(err.message);
-    } finally {
       setSaving(false);
     }
   }
 
   return (
-    <form className="panel form" onSubmit={handleSubmit} noValidate>
-      <h2>{editing ? 'Edit transaction' : 'Add transaction'}</h2>
-
-      <div className="type-toggle" role="group" aria-label="Type">
+    <form className="form" onSubmit={handleSubmit} noValidate>
+      <div className="type-switch" role="group" aria-label="Type">
         {['expense', 'income'].map((t) => (
           <button
             key={t}
             type="button"
-            className={values.type === t ? `active ${t}` : ''}
+            className={values.type === t ? `on ${t}` : ''}
+            aria-pressed={values.type === t}
             onClick={() => setType(t)}
           >
             {t === 'expense' ? 'Expense' : 'Income'}
@@ -72,53 +76,84 @@ export default function TransactionForm({ transaction, defaultDate, onSave, onCa
         ))}
       </div>
 
-      <label>
-        Amount
-        <input type="number" inputMode="decimal" step="0.01" value={values.amount} onChange={set('amount')} placeholder="0.00" />
+      <div className="field">
+        <label htmlFor="amount">Amount</label>
+        <div className={`amount-input ${values.type}`}>
+          <span>₹</span>
+          <input
+            id="amount"
+            ref={amountRef}
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            min="0"
+            placeholder="0"
+            value={values.amount}
+            onChange={set('amount')}
+          />
+        </div>
         {errors.amount && <span className="field-error">{errors.amount}</span>}
-      </label>
+      </div>
 
-      <label>
-        Category
-        <select value={values.category} onChange={set('category')}>
-          <option value="">Select category</option>
+      <div className="field">
+        <span className="field-label">Category</span>
+        <div className="chips" role="group" aria-label="Category">
           {CATEGORIES[values.type].map((c) => (
-            <option key={c} value={c}>{c}</option>
+            <button
+              key={c}
+              type="button"
+              className={`chip ${values.category === c ? 'on' : ''}`}
+              aria-pressed={values.category === c}
+              style={{ '--chip': categoryMeta(c).color }}
+              onClick={() => pick('category', c)}
+            >
+              <Icon name={categoryMeta(c).icon} size={16} />
+              {c}
+            </button>
           ))}
-        </select>
+        </div>
         {errors.category && <span className="field-error">{errors.category}</span>}
-      </label>
+      </div>
 
-      <label>
-        Date
-        <input type="date" value={values.date} onChange={set('date')} />
+      <div className="field">
+        <label htmlFor="date">Date</label>
+        <input id="date" type="date" value={values.date} onChange={set('date')} />
         {errors.date && <span className="field-error">{errors.date}</span>}
-      </label>
+      </div>
 
-      <label>
-        Payment method
-        <select value={values.paymentMethod} onChange={set('paymentMethod')}>
+      <div className="field">
+        <span className="field-label">Paid with</span>
+        <div className="chips" role="group" aria-label="Payment method">
           {PAYMENT_METHODS.map((m) => (
-            <option key={m.value} value={m.value}>{m.label}</option>
+            <button
+              key={m.value}
+              type="button"
+              className={`chip ${values.paymentMethod === m.value ? 'on' : ''}`}
+              aria-pressed={values.paymentMethod === m.value}
+              onClick={() => pick('paymentMethod', m.value)}
+            >
+              <Icon name={m.icon} size={16} />
+              {m.label}
+            </button>
           ))}
-        </select>
-      </label>
+        </div>
+      </div>
 
-      <label>
-        Note <span className="muted">(optional, {values.note.length}/200)</span>
-        <textarea rows="2" value={values.note} onChange={set('note')} />
+      <div className="field">
+        <label htmlFor="note">
+          Note <span className="muted">(optional, {values.note.length}/200)</span>
+        </label>
+        <textarea id="note" rows="2" value={values.note} onChange={set('note')} placeholder="What was this for?" />
         {errors.note && <span className="field-error">{errors.note}</span>}
-      </label>
+      </div>
 
-      {serverError && <div className="banner error">{serverError}</div>}
+      {serverError && <div className="banner error" role="alert">{serverError}</div>}
 
       <div className="form-actions">
-        <button type="submit" className="primary" disabled={saving}>
-          {saving ? 'Saving...' : editing ? 'Save changes' : 'Add transaction'}
+        <button type="button" className="btn" onClick={onCancel} disabled={saving}>Cancel</button>
+        <button type="submit" className={`btn primary ${values.type}`} disabled={saving}>
+          {saving ? 'Saving...' : editing ? 'Save changes' : `Add ${values.type}`}
         </button>
-        {editing && (
-          <button type="button" onClick={onCancel} disabled={saving}>Cancel</button>
-        )}
       </div>
     </form>
   );
