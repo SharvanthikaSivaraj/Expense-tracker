@@ -64,6 +64,39 @@ function demoAccounts(userId) {
   ];
 }
 
+const EXPENSE_CATEGORIES = ['Food', 'Transport', 'Rent', 'Shopping', 'Bills', 'Health', 'Entertainment', 'Other'];
+
+function demoPlan(userId) {
+  const now = new Date();
+  const day = (offset) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offset)).toISOString();
+  const base = () => ({ _id: crypto.randomUUID(), user: userId, createdAt: nowISO(), updatedAt: nowISO() });
+  return {
+    budgets: [
+      { ...base(), category: 'ALL', limit: 30000 },
+      { ...base(), category: 'Food', limit: 4000 },
+      { ...base(), category: 'Shopping', limit: 3000 },
+      { ...base(), category: 'Entertainment', limit: 1500 },
+    ],
+    goals: [
+      { ...base(), name: 'Goa trip', target: 60000, saved: 22000, deadline: day(150) },
+      { ...base(), name: 'Emergency fund', target: 100000, saved: 45000 },
+    ],
+    reminders: [
+      { ...base(), title: 'Phone bill', amount: 599, dueDate: day(-3), repeat: 'monthly', category: 'Bills', paid: false },
+      { ...base(), title: 'Electricity bill', amount: 1200, dueDate: day(5), repeat: 'monthly', category: 'Bills', paid: false },
+      { ...base(), title: 'Netflix', amount: 649, dueDate: day(11), repeat: 'monthly', category: 'Entertainment', paid: false },
+      { ...base(), title: 'Insurance premium', amount: 4500, dueDate: day(24), repeat: 'none', category: 'Health', paid: false },
+    ],
+  };
+}
+
+function attachDemoPlan(db, userId) {
+  const plan = demoPlan(userId);
+  db.budgets = plan.budgets;
+  db.goals = plan.goals;
+  db.reminders = plan.reminders;
+}
+
 // Gives the demo user accounts and links their sample transactions by payment method
 function attachDemoAccounts(db, userId) {
   const accounts = demoAccounts(userId);
@@ -111,6 +144,15 @@ async function load() {
     const raw = localStorage.getItem(DB_KEY);
     if (raw) {
       const db = JSON.parse(raw);
+      if (!db.budgets) {
+        // database created before budgets, goals and bills existed
+        const demo = db.users.find((u) => u.email === DEMO_ACCOUNT.email);
+        db.budgets = [];
+        db.goals = [];
+        db.reminders = [];
+        if (demo) attachDemoPlan(db, demo._id);
+        save(db);
+      }
       if (!db.accounts) {
         // database created before accounts existed: add them for the demo user
         const demo = db.users.find((u) => u.email === DEMO_ACCOUNT.email);
@@ -138,6 +180,7 @@ async function load() {
     transactions: demoTransactions(id),
   };
   attachDemoAccounts(db, id);
+  attachDemoPlan(db, id);
   save(db);
   return db;
 }
@@ -287,6 +330,9 @@ export async function deleteMe(password) {
   db.users = db.users.filter((u) => u._id !== user._id);
   db.transactions = db.transactions.filter((t) => t.user !== user._id);
   db.accounts = db.accounts.filter((a) => a.user !== user._id);
+  db.budgets = db.budgets.filter((b) => b.user !== user._id);
+  db.goals = db.goals.filter((g) => g.user !== user._id);
+  db.reminders = db.reminders.filter((r) => r.user !== user._id);
   save(db);
   return { message: 'Account deleted' };
 }
@@ -478,4 +524,240 @@ export async function deleteAccount(id) {
   }
   save(db);
   return { message: 'Deleted', unlinked };
+}
+
+// ---------- budgets ----------
+export async function getBudgets() {
+  await wait();
+  const { db, user } = await authed();
+  return db.budgets.filter((b) => b.user === user._id).sort((a, b) => a.category.localeCompare(b.category));
+}
+
+function limitProblem(limit) {
+  const n = Number(limit);
+  if (limit === '' || limit === undefined || Number.isNaN(n)) return 'Limit is required';
+  if (n < 1) return 'Limit must be at least 1';
+  return null;
+}
+
+export async function createBudget({ category, limit }) {
+  await wait();
+  const { db, user } = await authed();
+  if (category !== 'ALL' && !EXPENSE_CATEGORIES.includes(category)) throw httpError(400, 'Unknown category');
+  const problem = limitProblem(limit);
+  if (problem) throw httpError(400, problem);
+  if (db.budgets.some((b) => b.user === user._id && b.category === category)) {
+    throw httpError(409, 'A budget for this category already exists');
+  }
+  const budget = { _id: crypto.randomUUID(), user: user._id, category, limit: Number(limit), createdAt: nowISO(), updatedAt: nowISO() };
+  db.budgets.push(budget);
+  save(db);
+  return budget;
+}
+
+export async function updateBudget(id, { limit }) {
+  await wait();
+  const { db, user } = await authed();
+  const budget = db.budgets.find((b) => b._id === id && b.user === user._id);
+  if (!budget) throw httpError(404, 'Budget not found');
+  const problem = limitProblem(limit);
+  if (problem) throw httpError(400, problem);
+  budget.limit = Number(limit);
+  budget.updatedAt = nowISO();
+  save(db);
+  return budget;
+}
+
+export async function deleteBudget(id) {
+  await wait();
+  const { db, user } = await authed();
+  const index = db.budgets.findIndex((b) => b._id === id && b.user === user._id);
+  if (index === -1) throw httpError(404, 'Budget not found');
+  db.budgets.splice(index, 1);
+  save(db);
+  return { message: 'Deleted' };
+}
+
+// ---------- goals ----------
+function goalFrom(body, partial = false) {
+  const b = body || {};
+  const errors = [];
+  const out = {};
+  const name = typeof b.name === 'string' ? b.name.trim() : '';
+  if (!name) errors.push('Goal name is required');
+  else if (name.length > 60) errors.push('Goal name cannot exceed 60 characters');
+  else out.name = name;
+
+  const target = Number(b.target);
+  if (b.target === '' || b.target === undefined || Number.isNaN(target)) errors.push('Target is required');
+  else if (target < 1) errors.push('Target must be at least 1');
+  else out.target = target;
+
+  if (b.saved !== undefined && b.saved !== '') {
+    const saved = Number(b.saved);
+    if (Number.isNaN(saved) || saved < 0) errors.push('Saved amount cannot be negative');
+    else out.saved = saved;
+  }
+  if (b.deadline === '' || b.deadline === null || b.deadline === undefined) out.deadline = undefined;
+  else {
+    const d = new Date(b.deadline);
+    if (Number.isNaN(d.getTime())) errors.push('Deadline is not a valid date');
+    else out.deadline = d.toISOString();
+  }
+  if (errors.length && !partial) throw httpError(400, errors.join(', '));
+  if (errors.length) throw httpError(400, errors.join(', '));
+  return out;
+}
+
+export async function getGoals() {
+  await wait();
+  const { db, user } = await authed();
+  return db.goals.filter((g) => g.user === user._id);
+}
+
+export async function createGoal(body) {
+  await wait();
+  const { db, user } = await authed();
+  const goal = { _id: crypto.randomUUID(), user: user._id, saved: 0, ...goalFrom(body), createdAt: nowISO(), updatedAt: nowISO() };
+  db.goals.push(goal);
+  save(db);
+  return goal;
+}
+
+export async function updateGoal(id, body) {
+  await wait();
+  const { db, user } = await authed();
+  const goal = db.goals.find((g) => g._id === id && g.user === user._id);
+  if (!goal) throw httpError(404, 'Goal not found');
+  const data = goalFrom(body);
+  delete goal.deadline;
+  Object.assign(goal, data, { updatedAt: nowISO() });
+  if (goal.deadline === undefined) delete goal.deadline;
+  save(db);
+  return goal;
+}
+
+export async function contributeGoal(id, amount) {
+  await wait();
+  const { db, user } = await authed();
+  const goal = db.goals.find((g) => g._id === id && g.user === user._id);
+  if (!goal) throw httpError(404, 'Goal not found');
+  const n = Number(amount);
+  if (!Number.isFinite(n) || n === 0) throw httpError(400, 'Enter an amount other than 0');
+  goal.saved = Math.max(0, goal.saved + n);
+  goal.updatedAt = nowISO();
+  save(db);
+  return goal;
+}
+
+export async function deleteGoal(id) {
+  await wait();
+  const { db, user } = await authed();
+  const index = db.goals.findIndex((g) => g._id === id && g.user === user._id);
+  if (index === -1) throw httpError(404, 'Goal not found');
+  db.goals.splice(index, 1);
+  save(db);
+  return { message: 'Deleted' };
+}
+
+// ---------- reminders (bills) ----------
+function reminderFrom(body) {
+  const b = body || {};
+  const errors = [];
+  const title = typeof b.title === 'string' ? b.title.trim() : '';
+  if (!title) errors.push('Title is required');
+  else if (title.length > 60) errors.push('Title cannot exceed 60 characters');
+  const amount = Number(b.amount);
+  if (b.amount === '' || b.amount === undefined || Number.isNaN(amount)) errors.push('Amount is required');
+  else if (amount < 0.01) errors.push('Amount must be at least 0.01');
+  const due = new Date(b.dueDate);
+  if (!b.dueDate || Number.isNaN(due.getTime())) errors.push('Due date is required');
+  const repeat = b.repeat || 'none';
+  if (!['none', 'monthly'].includes(repeat)) errors.push('Repeat must be none or monthly');
+  const category = b.category || 'Bills';
+  if (!EXPENSE_CATEGORIES.includes(category)) errors.push('Unknown category');
+  if (errors.length) throw httpError(400, errors.join(', '));
+  return { title, amount, dueDate: due.toISOString(), repeat, category };
+}
+
+// Same day next month, clamped (Jan 31 -> Feb 28)
+function nextMonth(iso) {
+  const d = new Date(iso);
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth() + 1;
+  const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(y, m, Math.min(d.getUTCDate(), last))).toISOString();
+}
+
+export async function getReminders() {
+  await wait();
+  const { db, user } = await authed();
+  return db.reminders
+    .filter((r) => r.user === user._id)
+    .sort((a, b) => Number(a.paid) - Number(b.paid) || new Date(a.dueDate) - new Date(b.dueDate));
+}
+
+export async function createReminder(body) {
+  await wait();
+  const { db, user } = await authed();
+  const reminder = { _id: crypto.randomUUID(), user: user._id, paid: false, ...reminderFrom(body), createdAt: nowISO(), updatedAt: nowISO() };
+  db.reminders.push(reminder);
+  save(db);
+  return reminder;
+}
+
+export async function updateReminder(id, body) {
+  await wait();
+  const { db, user } = await authed();
+  const reminder = db.reminders.find((r) => r._id === id && r.user === user._id);
+  if (!reminder) throw httpError(404, 'Reminder not found');
+  Object.assign(reminder, reminderFrom({ ...reminder, ...body }), { updatedAt: nowISO() });
+  save(db);
+  return reminder;
+}
+
+export async function payReminder(id, body = {}) {
+  await wait();
+  const { db, user } = await authed();
+  const reminder = db.reminders.find((r) => r._id === id && r.user === user._id);
+  if (!reminder) throw httpError(404, 'Reminder not found');
+  const paymentMethod = body.paymentMethod || 'upi';
+  if (!METHODS.includes(paymentMethod)) throw httpError(400, 'Invalid payment method');
+  if (reminder.paid) throw httpError(400, 'This bill is already paid');
+  const account = body.account || null;
+  if (account && !db.accounts.some((a) => a._id === account && a.user === user._id)) {
+    throw httpError(400, 'Account not found');
+  }
+
+  const today = new Date();
+  const transaction = {
+    _id: crypto.randomUUID(),
+    user: user._id,
+    amount: reminder.amount,
+    type: 'expense',
+    category: reminder.category,
+    date: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())).toISOString(),
+    paymentMethod,
+    note: reminder.title,
+    account,
+    createdAt: nowISO(),
+    updatedAt: nowISO(),
+  };
+  db.transactions.push(transaction);
+
+  if (reminder.repeat === 'monthly') reminder.dueDate = nextMonth(reminder.dueDate);
+  else reminder.paid = true;
+  reminder.updatedAt = nowISO();
+  save(db);
+  return { reminder, transaction };
+}
+
+export async function deleteReminder(id) {
+  await wait();
+  const { db, user } = await authed();
+  const index = db.reminders.findIndex((r) => r._id === id && r.user === user._id);
+  if (index === -1) throw httpError(404, 'Reminder not found');
+  db.reminders.splice(index, 1);
+  save(db);
+  return { message: 'Deleted' };
 }

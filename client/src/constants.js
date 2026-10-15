@@ -109,3 +109,15 @@ export const greeting = () => {
   const h = new Date().getHours();
   return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
 };
+
+// Whole days from today until an ISO date (negative when past)
+export const daysUntil = (iso) =>
+  Math.round((Date.parse(`${toInputDate(iso)}T00:00:00Z`) - Date.parse(`${todayISO()}T00:00:00Z`)) / 86400000);
+
+export function dueInfo(iso) {
+  const d = daysUntil(iso);
+  if (d < 0) return { label: `Overdue by ${-d} day${d === -1 ? '' : 's'}`, tone: 'bad' };
+  if (d === 0) return { label: 'Due today', tone: 'warn' };
+  if (d === 1) return { label: 'Due tomorrow', tone: 'warn' };
+  return { label: `In ${d} days`, tone: d <= 7 ? 'warn' : 'ok' };
+}
