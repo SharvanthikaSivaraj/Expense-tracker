@@ -2,9 +2,27 @@
 
 Base URL (local): http://localhost:5001/api
 
+Transaction endpoints require `Authorization: Bearer <token>` (from `/auth/register` or `/auth/login`).
+A missing or invalid token returns 401.
+
 All requests and responses use JSON. All errors use this shape:
 
     { "error": "message here" }
+
+---
+
+## Auth
+
+| Method | Endpoint | Body | Success | Errors |
+|---|---|---|---|---|
+| POST | `/api/auth/register` | `{ name, email, password }` | 201 `{ token, user }` | 400 validation, 409 email exists |
+| POST | `/api/auth/login` | `{ email, password }` | 200 `{ token, user }` | 400, 401 invalid email or password |
+| GET | `/api/auth/me` | | 200 `user` | 401 |
+| PUT | `/api/auth/me` | `{ name }` | 200 `user` | 400, 401 |
+| PUT | `/api/auth/me/password` | `{ currentPassword, newPassword }` | 200 `{ message }` | 400, 401 |
+| DELETE | `/api/auth/me` | `{ password }` | 200 `{ message }` | 400, 401 |
+
+Passwords: 8 to 72 characters with at least one letter and one number.
 
 ---
 
