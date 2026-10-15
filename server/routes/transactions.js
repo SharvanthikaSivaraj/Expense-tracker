@@ -1,18 +1,31 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const Account = require('../models/Account');
 const Transaction = require('../models/Transaction');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
 router.use(auth);
 
-const FIELDS = ['amount', 'type', 'category', 'date', 'paymentMethod', 'note'];
+const FIELDS = ['amount', 'type', 'category', 'date', 'paymentMethod', 'note', 'account'];
 
 // Whitelist body fields so a client can never set user, _id or timestamps
 function pick(body) {
   const out = {};
   if (body && typeof body === 'object') for (const f of FIELDS) if (body[f] !== undefined) out[f] = body[f];
   return out;
+}
+
+// Normalises body.account and checks it belongs to the caller.
+// Returns an error message, or null when fine. ''/null means "no account".
+async function checkAccount(data, userId) {
+  if (!('account' in data)) return null;
+  if (data.account === '' || data.account === null) {
+    data.account = null;
+    return null;
+  }
+  if (typeof data.account !== 'string' || !mongoose.isValidObjectId(data.account)) return 'Account not found';
+  return (await Account.exists({ _id: data.account, user: userId })) ? null : 'Account not found';
 }
 
 // "2026-10" -> [2026-10-01T00:00Z, 2026-11-01T00:00Z)
@@ -59,6 +72,10 @@ router.get('/summary', async (req, res) => {
 
 router.get('/', async (req, res) => {
   const filter = { user: req.userId };
+  if (req.query.account !== undefined) {
+    if (!mongoose.isValidObjectId(req.query.account)) return res.status(400).json({ error: 'Invalid account id' });
+    filter.account = req.query.account;
+  }
   if (req.query.month !== undefined) {
     const range = monthRange(req.query.month);
     if (!range) return res.status(400).json({ error: 'month must be in YYYY-MM format' });
@@ -75,7 +92,10 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const transaction = await Transaction.create({ ...pick(req.body), user: req.userId });
+    const data = pick(req.body);
+    const accountError = await checkAccount(data, req.userId);
+    if (accountError) return res.status(400).json({ error: accountError });
+    const transaction = await Transaction.create({ ...data, user: req.userId });
     res.status(201).json(transaction);
   } catch (err) {
     if (err.name === 'ValidationError') return res.status(400).json({ error: validationMessage(err) });
@@ -87,9 +107,12 @@ router.put('/:id', async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid id' });
 
   try {
+    const data = pick(req.body);
+    const accountError = await checkAccount(data, req.userId);
+    if (accountError) return res.status(400).json({ error: accountError });
     const updated = await Transaction.findOneAndUpdate(
       { _id: req.params.id, user: req.userId },
-      pick(req.body),
+      data,
       { new: true, runValidators: true }
     );
     if (!updated) return res.status(404).json({ error: 'Transaction not found' });

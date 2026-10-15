@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const mongoose = require('mongoose');
+const accountRoutes = require('./routes/accounts');
 const authRoutes = require('./routes/auth');
 const transactionRoutes = require('./routes/transactions');
 
@@ -20,6 +21,7 @@ app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
 app.use(express.json({ limit: '10kb' }));
 
 app.use('/api/auth', authRoutes);
+app.use('/api/accounts', accountRoutes);
 app.use('/api/transactions', transactionRoutes);
 
 // Malformed JSON body and anything unhandled

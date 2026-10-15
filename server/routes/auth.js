@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const User = require('../models/User');
+const Account = require('../models/Account');
 const Transaction = require('../models/Transaction');
 const auth = require('../middleware/auth');
 
@@ -116,6 +117,7 @@ router.delete('/me', auth, limiter, async (req, res) => {
       return res.status(400).json({ error: 'Password is incorrect' });
     }
     await Transaction.deleteMany({ user: user._id });
+    await Account.deleteMany({ user: user._id });
     await user.deleteOne();
     res.json({ message: 'Account deleted' });
   } catch (err) {
