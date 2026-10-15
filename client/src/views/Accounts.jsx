@@ -4,14 +4,14 @@ import Icon from '../components/Icon';
 import Pocket from '../components/Pocket';
 import { formatMoney, isCardType } from '../constants';
 
-export default function Accounts({ accounts, transactions = [], holder, loading, actions }) {
-  const unlinked = transactions.filter((t) => !t.account).length;
+export default function Accounts({ accounts, overview, totalBalance, holder, loading, actions }) {
+  const unlinkedCount = overview?.unlinkedCount || 0;
+  const unlinkedNet = (overview?.unlinkedIncome || 0) - (overview?.unlinkedExpense || 0);
   const cards = accounts.filter((a) => isCardType(a.type));
   const pockets = accounts.filter((a) => !isCardType(a.type));
 
   const spendable = accounts.filter((a) => a.type !== 'credit_card').reduce((s, a) => s + a.balance, 0);
   const creditUsed = accounts.filter((a) => a.type === 'credit_card').reduce((s, a) => s + Math.max(0, -a.balance), 0);
-  const net = accounts.reduce((s, a) => s + a.balance, 0);
 
   if (!loading && accounts.length === 0) {
     return (
@@ -35,10 +35,10 @@ export default function Accounts({ accounts, transactions = [], holder, loading,
       <div className="acct-summary">
         <div className="tile" style={{ '--b': 'var(--primary)' }}>
           <div className="tile-head">
-            <small>Total in accounts</small>
+            <small>Total balance</small>
             <span className="tile-badge"><Icon name="wallet" size={16} /></span>
           </div>
-          <strong className={net < 0 ? 'bad' : ''}>{formatMoney(net)}</strong>
+          <strong className={totalBalance < 0 ? 'bad' : ''}>{formatMoney(totalBalance)}</strong>
         </div>
         <div className="tile" style={{ '--b': 'var(--income)' }}>
           <div className="tile-head">
@@ -55,14 +55,6 @@ export default function Accounts({ accounts, transactions = [], holder, loading,
           <strong>{formatMoney(creditUsed)}</strong>
         </div>
       </div>
-
-      {unlinked > 0 && (
-        <p className="hint-banner" role="note">
-          {unlinked} transaction{unlinked === 1 ? '' : 's'} this month {unlinked === 1 ? 'is' : 'are'} not linked to an
-          account, so {unlinked === 1 ? 'it is' : 'they are'} not counted in the balances below. Edit
-          {unlinked === 1 ? ' it' : ' them'} and pick an account.
-        </p>
-      )}
 
       {cards.length > 0 && (
         <section className="panel static">
@@ -89,6 +81,22 @@ export default function Accounts({ accounts, transactions = [], holder, loading,
           {pockets.map((a) => (
             <Pocket key={a._id} account={a} onEdit={actions.editAccount} onDelete={actions.removeAccount} />
           ))}
+          {unlinkedCount > 0 && (
+            <article className="pocket pk-unlinked">
+              <span className="pk-medal">
+                <Icon name="alert" size={20} />
+              </span>
+              <div className="pk-body">
+                <small>Not linked</small>
+                <strong>
+                  {unlinkedCount} transaction{unlinkedCount === 1 ? '' : 's'} without an account
+                </strong>
+              </div>
+              <div className="pk-amount">
+                <strong className={unlinkedNet < 0 ? 'bad' : ''}>{formatMoney(unlinkedNet)}</strong>
+              </div>
+            </article>
+          )}
           <button type="button" className="pocket pocket-add" onClick={actions.addAccount}>
             <Icon name="plus" size={18} /> Add
           </button>

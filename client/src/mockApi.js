@@ -378,6 +378,23 @@ function accountLink(db, user, body) {
   return { present: true, value: body.account };
 }
 
+// All-time totals split by whether a transaction is linked to an account
+export async function getOverview() {
+  await wait();
+  const { db, user } = await authed();
+  const out = { income: 0, expense: 0, unlinkedIncome: 0, unlinkedExpense: 0, unlinkedCount: 0, lastDate: null };
+  for (const t of db.transactions) {
+    if (t.user !== user._id) continue;
+    out[t.type] += t.amount;
+    if (!t.account) {
+      out[t.type === 'income' ? 'unlinkedIncome' : 'unlinkedExpense'] += t.amount;
+      out.unlinkedCount += 1;
+    }
+    if (!out.lastDate || t.date > out.lastDate) out.lastDate = t.date;
+  }
+  return out;
+}
+
 export async function createTransaction(body) {
   await wait();
   const { db, user } = await authed();

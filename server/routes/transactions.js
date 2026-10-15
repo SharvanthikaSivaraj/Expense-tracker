@@ -70,6 +70,40 @@ router.get('/summary', async (req, res) => {
   }
 });
 
+// All-time totals, split by whether the transaction is linked to an account.
+// The client adds the account balances to the unlinked net to get the real total balance.
+router.get('/overview', async (req, res) => {
+  try {
+    const rows = await Transaction.aggregate([
+      { $match: { user: new mongoose.Types.ObjectId(req.userId) } },
+      {
+        $group: {
+          _id: {
+            type: '$type',
+            linked: { $cond: [{ $eq: [{ $ifNull: ['$account', null] }, null] }, false, true] },
+          },
+          total: { $sum: '$amount' },
+          count: { $sum: 1 },
+          last: { $max: '$date' },
+        },
+      },
+    ]);
+
+    const out = { income: 0, expense: 0, unlinkedIncome: 0, unlinkedExpense: 0, unlinkedCount: 0, lastDate: null };
+    for (const r of rows) {
+      out[r._id.type] += r.total;
+      if (!r._id.linked) {
+        out[r._id.type === 'income' ? 'unlinkedIncome' : 'unlinkedExpense'] += r.total;
+        out.unlinkedCount += r.count;
+      }
+      if (!out.lastDate || r.last > out.lastDate) out.lastDate = r.last;
+    }
+    res.json(out);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.get('/', async (req, res) => {
   const filter = { user: req.userId };
   if (req.query.account !== undefined) {

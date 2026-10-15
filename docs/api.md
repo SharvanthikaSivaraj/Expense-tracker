@@ -78,6 +78,20 @@ Budget progress is computed on the client from the monthly summary (`byCategory`
 
 ---
 
+## GET /api/transactions/overview
+All-time totals, used for the dashboard's total balance. Requires a token.
+
+    {
+      "income": 240000, "expense": 251000,
+      "unlinkedIncome": 90000, "unlinkedExpense": 249000, "unlinkedCount": 2,
+      "lastDate": "2026-09-30T00:00:00.000Z"
+    }
+
+`total balance = sum of account balances + (unlinkedIncome - unlinkedExpense)`, which equals all opening
+balances + all income - all expense, so a transaction without an account is never left out.
+
+---
+
 ## 1. GET /api/transactions?month=2026-10
 List transactions for a month, newest first. If `month` is omitted, returns all.
 

@@ -31,13 +31,12 @@ function useCountUp(target, ms = 650) {
   return value;
 }
 
-export default function SummaryCards({ summary, prevSummary, transactions, month, onAdd }) {
+export default function SummaryCards({ summary, prevSummary, transactions, month, totalBalance = 0, onAdd }) {
   const { income, expense, balance, byCategory } = summary;
-  const shownBalance = useCountUp(balance);
+  const shownBalance = useCountUp(totalBalance);
   const [whole, cents] = Math.abs(shownBalance).toFixed(2).split('.');
 
   const spentPct = income > 0 ? Math.min(100, (expense / income) * 100) : expense > 0 ? 100 : 0;
-  const savingsRate = income > 0 ? Math.round(((income - expense) / income) * 100) : null;
 
   const top = byCategory[0];
   const biggest = transactions
@@ -50,24 +49,24 @@ export default function SummaryCards({ summary, prevSummary, transactions, month
   const dailyAvg = expense > 0 ? expense / days : 0;
 
   const prevExpense = prevSummary?.expense || 0;
-  const delta = prevExpense > 0 ? Math.round(((expense - prevExpense) / prevExpense) * 100) : null;
+  // a month with no spending yet cannot be compared fairly, so show nothing instead of "100% down"
+  const delta = prevExpense > 0 && expense > 0 ? Math.round(((expense - prevExpense) / prevExpense) * 100) : null;
 
   return (
     <section className="summary">
       <div className="hero">
         <div className="hero-main">
-          <span className="hero-label">Net this month</span>
-          <small className="hero-sub">Income minus expense, {monthLabel(month)}</small>
-          <div className="hero-amount" aria-label={formatMoney(balance)}>
+          <span className="hero-label">Total balance</span>
+          <small className="hero-sub">Across all your accounts</small>
+          <div className="hero-amount" aria-label={formatMoney(totalBalance)}>
             <span className="cur">{shownBalance < 0 ? '−₹' : '₹'}</span>
             {wholeFmt.format(Number(whole))}
             <span className="cents">.{cents}</span>
           </div>
-          {savingsRate !== null && (
-            <span className="pill">
-              {savingsRate >= 0 ? `Saving ${savingsRate}% of income` : `Overspent by ${Math.abs(savingsRate)}%`}
-            </span>
-          )}
+          <span className="pill">
+            {monthLabel(month)}: {balance < 0 ? '−' : '+'}
+            {formatMoney(Math.abs(balance))}
+          </span>
         </div>
 
         <div className="hero-flow">
@@ -165,7 +164,7 @@ export default function SummaryCards({ summary, prevSummary, transactions, month
           {delta === null ? (
             <>
               <strong className="dim">-</strong>
-              <span className="muted">no data last month</span>
+              <span className="muted">{expense === 0 ? 'no spending yet' : 'no data last month'}</span>
             </>
           ) : (
             <>

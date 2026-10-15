@@ -7,6 +7,7 @@ import {
   getAccounts,
   getBudgets,
   getGoals,
+  getOverview,
   getReminders,
   getSummary,
   getTransactions,
@@ -31,6 +32,7 @@ import Settings from './views/Settings';
 import Transactions from './views/Transactions';
 
 const EMPTY_SUMMARY = { income: 0, expense: 0, balance: 0, byCategory: [] };
+const EMPTY_OVERVIEW = { income: 0, expense: 0, unlinkedIncome: 0, unlinkedExpense: 0, unlinkedCount: 0, lastDate: null };
 
 export default function App() {
   const { user, logout } = useAuth();
@@ -41,6 +43,7 @@ export default function App() {
   const [summary, setSummary] = useState(EMPTY_SUMMARY);
   const [prevSummary, setPrevSummary] = useState(null);
   const [accounts, setAccounts] = useState([]);
+  const [overview, setOverview] = useState(EMPTY_OVERVIEW);
   const [budgets, setBudgets] = useState([]);
   const [goals, setGoals] = useState([]);
   const [reminders, setReminders] = useState([]);
@@ -63,7 +66,7 @@ export default function App() {
     setLoading(true);
     setError('');
     try {
-      const [list, sum, prev, accts, buds, gls, rems] = await Promise.all([
+      const [list, sum, prev, accts, buds, gls, rems, ov] = await Promise.all([
         getTransactions(m),
         getSummary(m),
         getSummary(shiftMonth(m, -1)).catch(() => null), // comparison is optional
@@ -71,6 +74,7 @@ export default function App() {
         getBudgets(),
         getGoals(),
         getReminders(),
+        getOverview(),
       ]);
       if (id !== latest.current) return; // a newer request replaced this one
       setTransactions(list);
@@ -80,6 +84,7 @@ export default function App() {
       setBudgets(buds);
       setGoals(gls);
       setReminders(rems);
+      setOverview(ov);
     } catch (err) {
       if (id === latest.current) setError(err.message);
     } finally {
@@ -152,7 +157,13 @@ export default function App() {
 
   const overallBudget = budgets.find((b) => b.category === 'ALL')?.limit || 0;
 
+  // Real total balance: every account's balance plus the net of transactions not linked to any account.
+  // This equals all opening balances + all income - all expense, so nothing is ever left out.
+  const unlinkedNet = overview.unlinkedIncome - overview.unlinkedExpense;
+  const totalBalance = accounts.reduce((s, a) => s + a.balance, 0) + unlinkedNet;
+
   const actions = {
+    setMonth,
     payBill: handlePayBill,
     seeBills: () => {
       setPlanTab('bills');
@@ -226,6 +237,8 @@ export default function App() {
             month={month}
             budget={overallBudget}
             reminders={reminders}
+            totalBalance={totalBalance}
+            overview={overview}
             dark={dark}
             accounts={accounts}
             actions={actions}
@@ -234,7 +247,14 @@ export default function App() {
         {view === 'transactions' && (
           <Transactions transactions={transactions} accounts={accounts} loading={loading} month={month} actions={actions} />
         )}
-        {view === 'accounts' && <Accounts accounts={accounts} transactions={transactions} holder={user.name} loading={loading} actions={actions} />}
+        {view === 'accounts' && <Accounts
+            accounts={accounts}
+            overview={overview}
+            totalBalance={totalBalance}
+            holder={user.name}
+            loading={loading}
+            actions={actions}
+          />}
         {view === 'plan' && (
           <Plan
             tab={planTab}
