@@ -4,6 +4,9 @@ const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const User = require('../models/User');
 const Account = require('../models/Account');
+const Budget = require('../models/Budget');
+const Goal = require('../models/Goal');
+const Reminder = require('../models/Reminder');
 const Transaction = require('../models/Transaction');
 const auth = require('../middleware/auth');
 
@@ -118,6 +121,9 @@ router.delete('/me', auth, limiter, async (req, res) => {
     }
     await Transaction.deleteMany({ user: user._id });
     await Account.deleteMany({ user: user._id });
+    await Budget.deleteMany({ user: user._id });
+    await Goal.deleteMany({ user: user._id });
+    await Reminder.deleteMany({ user: user._id });
     await user.deleteOne();
     res.json({ message: 'Account deleted' });
   } catch (err) {

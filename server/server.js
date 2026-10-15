@@ -5,6 +5,9 @@ const helmet = require('helmet');
 const mongoose = require('mongoose');
 const accountRoutes = require('./routes/accounts');
 const authRoutes = require('./routes/auth');
+const budgetRoutes = require('./routes/budgets');
+const goalRoutes = require('./routes/goals');
+const reminderRoutes = require('./routes/reminders');
 const transactionRoutes = require('./routes/transactions');
 
 if (!process.env.MONGO_URI || !process.env.JWT_SECRET) {
@@ -22,6 +25,9 @@ app.use(express.json({ limit: '10kb' }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/accounts', accountRoutes);
+app.use('/api/budgets', budgetRoutes);
+app.use('/api/goals', goalRoutes);
+app.use('/api/reminders', reminderRoutes);
 app.use('/api/transactions', transactionRoutes);
 
 // Malformed JSON body and anything unhandled
