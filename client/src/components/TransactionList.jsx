@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { categoryMeta, dayLabel, formatMoney, PAYMENT_METHODS, toInputDate } from '../constants';
+import { downloadCsv, transactionsToCsv } from '../csv';
 import EmptyState from './EmptyState';
 import Icon from './Icon';
 
@@ -72,6 +73,7 @@ export default function TransactionList({
   compact = false,
   limit = 6,
   onSeeAll,
+  exportName = 'transactions',
 }) {
   const [filter, setFilter] = useState('all');
   const [category, setCategory] = useState('all');
@@ -100,12 +102,20 @@ export default function TransactionList({
     return { groups: groupByDay(list), flat: null };
   }, [transactions, compact, limit, filter, category, accountFilter, sort, query]);
 
-  const shown = flat ? flat.length : groups.reduce((n, g) => n + g.items.length, 0);
+  const visible = flat || groups.flatMap((g) => g.items);
+  const shown = visible.length;
+
+  const exportCsv = () => downloadCsv(`${exportName}.csv`, transactionsToCsv(visible, accountNames));
 
   return (
     <section className="panel list-panel">
       <div className="list-head">
         <h2>{compact ? 'Recent transactions' : `Transactions${transactions.length ? ` (${shown})` : ''}`}</h2>
+        {!compact && shown > 0 && (
+          <button type="button" className="btn small export-btn" onClick={exportCsv}>
+            <Icon name="download" size={16} /> Export CSV
+          </button>
+        )}
         {compact && transactions.length > 0 && (
           <button type="button" className="link-btn" onClick={onSeeAll}>
             See all <Icon name="chevR" size={16} />

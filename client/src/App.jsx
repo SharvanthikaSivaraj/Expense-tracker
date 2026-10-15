@@ -232,7 +232,7 @@ export default function App() {
           />
         )}
         {view === 'transactions' && (
-          <Transactions transactions={transactions} accounts={accounts} loading={loading} actions={actions} />
+          <Transactions transactions={transactions} accounts={accounts} loading={loading} month={month} actions={actions} />
         )}
         {view === 'accounts' && <Accounts accounts={accounts} holder={user.name} loading={loading} actions={actions} />}
         {view === 'plan' && (
