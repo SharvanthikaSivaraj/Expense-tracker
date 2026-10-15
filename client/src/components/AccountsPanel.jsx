@@ -39,7 +39,7 @@ export default function AccountsPanel({ accounts, onAdd, onSeeAll }) {
         ))}
       </ul>
       <div className="acct-total">
-        <span className="muted">Net balance</span>
+        <span className="muted">Total in accounts</span>
         <strong className={net < 0 ? 'bad' : ''}>{formatMoney(net)}</strong>
       </div>
     </section>

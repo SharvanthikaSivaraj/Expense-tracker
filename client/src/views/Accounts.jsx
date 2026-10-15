@@ -4,7 +4,8 @@ import Icon from '../components/Icon';
 import Pocket from '../components/Pocket';
 import { formatMoney, isCardType } from '../constants';
 
-export default function Accounts({ accounts, holder, loading, actions }) {
+export default function Accounts({ accounts, transactions = [], holder, loading, actions }) {
+  const unlinked = transactions.filter((t) => !t.account).length;
   const cards = accounts.filter((a) => isCardType(a.type));
   const pockets = accounts.filter((a) => !isCardType(a.type));
 
@@ -34,7 +35,7 @@ export default function Accounts({ accounts, holder, loading, actions }) {
       <div className="acct-summary">
         <div className="tile" style={{ '--b': 'var(--primary)' }}>
           <div className="tile-head">
-            <small>Net balance</small>
+            <small>Total in accounts</small>
             <span className="tile-badge"><Icon name="wallet" size={16} /></span>
           </div>
           <strong className={net < 0 ? 'bad' : ''}>{formatMoney(net)}</strong>
@@ -54,6 +55,14 @@ export default function Accounts({ accounts, holder, loading, actions }) {
           <strong>{formatMoney(creditUsed)}</strong>
         </div>
       </div>
+
+      {unlinked > 0 && (
+        <p className="hint-banner" role="note">
+          {unlinked} transaction{unlinked === 1 ? '' : 's'} this month {unlinked === 1 ? 'is' : 'are'} not linked to an
+          account, so {unlinked === 1 ? 'it is' : 'they are'} not counted in the balances below. Edit
+          {unlinked === 1 ? ' it' : ' them'} and pick an account.
+        </p>
+      )}
 
       {cards.length > 0 && (
         <section className="panel static">

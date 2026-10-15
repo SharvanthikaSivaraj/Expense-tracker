@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { categoryMeta, dayLabel, formatMoney, PAYMENT_METHODS, toInputDate } from '../constants';
+import { ALL_PAYMENT_METHODS, categoryMeta, dayLabel, formatMoney, toInputDate } from '../constants';
 import { downloadCsv, transactionsToCsv } from '../csv';
 import EmptyState from './EmptyState';
 import Icon from './Icon';
@@ -17,7 +17,7 @@ const SORTS = [
   { id: 'low', label: 'Lowest amount' },
 ];
 
-const methodLabel = (v) => PAYMENT_METHODS.find((m) => m.value === v)?.label || v;
+const methodLabel = (v) => ALL_PAYMENT_METHODS.find((m) => m.value === v)?.label || v;
 
 function groupByDay(items) {
   const byDay = new Map();

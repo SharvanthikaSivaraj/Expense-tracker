@@ -18,12 +18,22 @@ export const CATEGORY_META = {
 };
 export const categoryMeta = (c) => CATEGORY_META[c] || CATEGORY_META.Other;
 
+// What the form offers. 'bank' is no longer selectable (a card or UPI payment already covers it)
+// but older transactions can still carry it, so ALL_PAYMENT_METHODS is used when displaying.
 export const PAYMENT_METHODS = [
   { value: 'cash', label: 'Cash', icon: 'cash' },
   { value: 'card', label: 'Card', icon: 'card' },
   { value: 'upi', label: 'UPI', icon: 'phone' },
-  { value: 'bank', label: 'Bank', icon: 'bank' },
 ];
+export const ALL_PAYMENT_METHODS = [...PAYMENT_METHODS, { value: 'bank', label: 'Bank', icon: 'bank' }];
+
+// Which kind of account can pay with each method
+export const METHOD_ACCOUNT_TYPES = {
+  cash: ['cash'],
+  card: ['credit_card', 'debit_card'],
+  upi: ['bank', 'wallet'],
+  bank: ['bank', 'wallet'],
+};
 
 export const ACCOUNT_TYPES = [
   { value: 'bank', label: 'Bank', icon: 'bank' },

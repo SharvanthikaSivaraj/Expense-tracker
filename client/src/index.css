@@ -975,3 +975,16 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .suggest-btn { align-self: flex-start; margin-top: -6px; padding: 6px 12px; border-radius: 999px; border: 1px dashed var(--primary); background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--text); font-size: 0.85rem; }
 .suggest-btn strong { color: var(--primary); }
+
+/* ---------- Transaction form: custom category, account notices ---------- */
+.other-field { margin-top: 8px; display: grid; gap: 6px; animation: rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.auto-account { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1.5px solid var(--primary); border-radius: 14px; background: color-mix(in srgb, var(--primary) 10%, var(--surface)); }
+.auto-account svg { color: var(--primary); flex: none; }
+.auto-account .muted { margin-left: auto; font-size: 0.8rem; }
+.notice { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 14px; }
+.notice > div { flex: 1; min-width: 0; }
+.notice p { font-size: 0.88rem; margin-top: 2px; }
+.notice.warn { background: color-mix(in srgb, var(--warn) 14%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); }
+.notice.warn svg { color: var(--warn); flex: none; margin-top: 2px; }
+.hero-sub { opacity: 0.8; margin-top: -2px; }
+.hint-banner { padding: 10px 14px; border-radius: 14px; font-size: 0.9rem; font-weight: 500; background: color-mix(in srgb, var(--warn) 14%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); }

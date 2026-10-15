@@ -234,7 +234,7 @@ export default function App() {
         {view === 'transactions' && (
           <Transactions transactions={transactions} accounts={accounts} loading={loading} month={month} actions={actions} />
         )}
-        {view === 'accounts' && <Accounts accounts={accounts} holder={user.name} loading={loading} actions={actions} />}
+        {view === 'accounts' && <Accounts accounts={accounts} transactions={transactions} holder={user.name} loading={loading} actions={actions} />}
         {view === 'plan' && (
           <Plan
             tab={planTab}
@@ -276,6 +276,7 @@ export default function App() {
             accounts={accounts}
             defaultDate={defaultDate}
             defaultType={drawer.type}
+            onAddAccount={actions.addAccount}
             onSave={handleSave}
             onCancel={closeDrawer}
           />

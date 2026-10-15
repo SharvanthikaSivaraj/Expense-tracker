@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { categoryMeta, currentMonth, daysInMonth, formatMoney, todayISO } from '../constants';
+import { categoryMeta, currentMonth, daysInMonth, formatMoney, monthLabel, todayISO } from '../constants';
 import Icon from './Icon';
 
 const wholeFmt = new Intl.NumberFormat('en-IN');
@@ -56,7 +56,8 @@ export default function SummaryCards({ summary, prevSummary, transactions, month
     <section className="summary">
       <div className="hero">
         <div className="hero-main">
-          <span className="hero-label">Balance</span>
+          <span className="hero-label">Net this month</span>
+          <small className="hero-sub">Income minus expense, {monthLabel(month)}</small>
           <div className="hero-amount" aria-label={formatMoney(balance)}>
             <span className="cur">{shownBalance < 0 ? '−₹' : '₹'}</span>
             {wholeFmt.format(Number(whole))}
