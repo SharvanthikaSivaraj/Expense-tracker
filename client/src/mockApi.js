@@ -11,6 +11,9 @@ export const DEMO_ACCOUNT = { email: 'demo@expensetracker.dev', password: 'Demo1
 const CATEGORIES_OK = (v) => typeof v === 'string' && v.trim().length > 0;
 const TYPES = ['income', 'expense'];
 const METHODS = ['cash', 'card', 'upi', 'bank'];
+const ACCOUNT_TYPES = ['bank', 'cash', 'wallet', 'credit_card', 'debit_card'];
+const NETWORKS = ['visa', 'mastercard', 'rupay', 'amex', 'other'];
+const COLORS = ['teal', 'indigo', 'amber', 'rose', 'slate'];
 
 const wait = (ms = DELAY) => new Promise((r) => setTimeout(r, ms));
 
@@ -30,6 +33,47 @@ const nowISO = () => new Date().toISOString();
 const publicUser = ({ passwordHash, ...rest }) => rest; // eslint-disable-line no-unused-vars
 
 // ---------- storage ----------
+function demoAccounts(userId) {
+  const base = { user: userId, createdAt: nowISO(), updatedAt: nowISO() };
+  return [
+    { ...base, _id: crypto.randomUUID(), name: 'HDFC Savings', type: 'bank', openingBalance: 25000, color: 'teal' },
+    { ...base, _id: crypto.randomUUID(), name: 'Cash wallet', type: 'cash', openingBalance: 2000, color: 'amber' },
+    {
+      ...base,
+      _id: crypto.randomUUID(),
+      name: 'ICICI Credit Card',
+      type: 'credit_card',
+      network: 'visa',
+      last4: '4242',
+      expiry: '08/29',
+      creditLimit: 100000,
+      openingBalance: 0,
+      color: 'indigo',
+    },
+    {
+      ...base,
+      _id: crypto.randomUUID(),
+      name: 'Axis Debit Card',
+      type: 'debit_card',
+      network: 'mastercard',
+      last4: '1881',
+      expiry: '03/28',
+      openingBalance: 5000,
+      color: 'slate',
+    },
+  ];
+}
+
+// Gives the demo user accounts and links their sample transactions by payment method
+function attachDemoAccounts(db, userId) {
+  const accounts = demoAccounts(userId);
+  const byName = Object.fromEntries(accounts.map((a) => [a.name, a._id]));
+  const map = { bank: 'HDFC Savings', upi: 'HDFC Savings', cash: 'Cash wallet', card: 'ICICI Credit Card' };
+  db.accounts = accounts;
+  for (const t of db.transactions) {
+    if (t.user === userId && t.account === undefined) t.account = byName[map[t.paymentMethod]] || null;
+  }
+}
 function demoTransactions(userId) {
   const now = new Date();
   const cur = { y: now.getUTCFullYear(), m: now.getUTCMonth() };
@@ -65,7 +109,17 @@ function demoTransactions(userId) {
 async function load() {
   try {
     const raw = localStorage.getItem(DB_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const db = JSON.parse(raw);
+      if (!db.accounts) {
+        // database created before accounts existed: add them for the demo user
+        const demo = db.users.find((u) => u.email === DEMO_ACCOUNT.email);
+        db.accounts = [];
+        if (demo) attachDemoAccounts(db, demo._id);
+        save(db);
+      }
+      return db;
+    }
   } catch {
     // fall through and rebuild
   }
@@ -83,6 +137,7 @@ async function load() {
     ],
     transactions: demoTransactions(id),
   };
+  attachDemoAccounts(db, id);
   save(db);
   return db;
 }
@@ -225,12 +280,13 @@ export async function changePassword({ currentPassword, newPassword }) {
   return { message: 'Password updated' };
 }
 
-export async function deleteAccount(password) {
+export async function deleteMe(password) {
   await wait();
   const { db, user } = await authed();
   if (user.passwordHash !== (await hash(String(password)))) throw httpError(400, 'Password is incorrect');
   db.users = db.users.filter((u) => u._id !== user._id);
   db.transactions = db.transactions.filter((t) => t.user !== user._id);
+  db.accounts = db.accounts.filter((a) => a.user !== user._id);
   save(db);
   return { message: 'Account deleted' };
 }
@@ -266,10 +322,29 @@ export async function getSummary(month) {
   return { income, expense, balance: income - expense, byCategory };
 }
 
+// '' / null unlink, an id must belong to the caller. Returns { present, value }.
+function accountLink(db, user, body) {
+  if (!('account' in body)) return { present: false };
+  if (body.account === '' || body.account === null) return { present: true, value: null };
+  if (!db.accounts.some((a) => a._id === body.account && a.user === user._id)) {
+    throw httpError(400, 'Account not found');
+  }
+  return { present: true, value: body.account };
+}
+
 export async function createTransaction(body) {
   await wait();
   const { db, user } = await authed();
-  const t = { _id: crypto.randomUUID(), user: user._id, ...transactionFrom(body || {}), createdAt: nowISO(), updatedAt: nowISO() };
+  const input = body || {};
+  const link = accountLink(db, user, input);
+  const t = {
+    _id: crypto.randomUUID(),
+    user: user._id,
+    ...transactionFrom(input),
+    account: link.present ? link.value : null,
+    createdAt: nowISO(),
+    updatedAt: nowISO(),
+  };
   db.transactions.push(t);
   save(db);
   return t;
@@ -280,7 +355,10 @@ export async function updateTransaction(id, body) {
   const { db, user } = await authed();
   const existing = db.transactions.find((t) => t._id === id && t.user === user._id);
   if (!existing) throw httpError(404, 'Transaction not found');
-  Object.assign(existing, transactionFrom(body || {}), { updatedAt: nowISO() });
+  const input = body || {};
+  const link = accountLink(db, user, input);
+  Object.assign(existing, transactionFrom(input), { updatedAt: nowISO() });
+  if (link.present) existing.account = link.value;
   save(db);
   return existing;
 }
@@ -293,4 +371,111 @@ export async function deleteTransaction(id) {
   db.transactions.splice(index, 1);
   save(db);
   return { message: 'Deleted' };
+}
+
+// ---------- accounts ----------
+const CARD_FIELDS = ['network', 'last4', 'expiry', 'creditLimit'];
+
+function accountFrom(body) {
+  const input = body && typeof body === 'object' ? body : {};
+  const errors = [];
+
+  const name = typeof input.name === 'string' ? input.name.trim() : '';
+  if (!name) errors.push('Account name is required');
+  else if (name.length > 40) errors.push('Account name cannot exceed 40 characters');
+
+  if (!ACCOUNT_TYPES.includes(input.type)) errors.push('Type must be bank, cash, wallet, credit_card or debit_card');
+
+  const opening = input.openingBalance === '' || input.openingBalance === undefined ? 0 : Number(input.openingBalance);
+  if (Number.isNaN(opening)) errors.push('Opening balance must be a number');
+
+  const out = { name, type: input.type, openingBalance: opening, color: COLORS.includes(input.color) ? input.color : 'teal' };
+  if (input.color !== undefined && input.color !== '' && !COLORS.includes(input.color)) errors.push('Unknown color');
+
+  const isCard = input.type === 'credit_card' || input.type === 'debit_card';
+  if (isCard) {
+    if (input.network) {
+      if (!NETWORKS.includes(input.network)) errors.push('Unknown card network');
+      else out.network = input.network;
+    }
+    if (input.last4) {
+      if (!/^\d{4}$/.test(String(input.last4))) errors.push('Last 4 digits must be exactly 4 numbers');
+      else out.last4 = String(input.last4);
+    }
+    if (input.expiry) {
+      if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(String(input.expiry))) errors.push('Expiry must look like MM/YY');
+      else out.expiry = String(input.expiry);
+    }
+    if (input.type === 'credit_card' && input.creditLimit !== undefined && input.creditLimit !== '') {
+      const limit = Number(input.creditLimit);
+      if (Number.isNaN(limit) || limit < 0) errors.push('Credit limit cannot be negative');
+      else out.creditLimit = limit;
+    }
+  }
+  if (errors.length) throw httpError(400, errors.join(', '));
+  return out;
+}
+
+function withTotals(db, account) {
+  let income = 0;
+  let expense = 0;
+  let transactionCount = 0;
+  for (const t of db.transactions) {
+    if (t.account !== account._id) continue;
+    transactionCount += 1;
+    if (t.type === 'income') income += t.amount;
+    else expense += t.amount;
+  }
+  return { ...account, income, expense, transactionCount, balance: account.openingBalance + income - expense };
+}
+
+const nameTaken = (db, user, name, exceptId) =>
+  db.accounts.some((a) => a.user === user._id && a.name === name && a._id !== exceptId);
+
+export async function getAccounts() {
+  await wait();
+  const { db, user } = await authed();
+  return db.accounts.filter((a) => a.user === user._id).map((a) => withTotals(db, a));
+}
+
+export async function createAccount(body) {
+  await wait();
+  const { db, user } = await authed();
+  const data = accountFrom(body);
+  if (nameTaken(db, user, data.name)) throw httpError(409, 'You already have an account with this name');
+  const account = { _id: crypto.randomUUID(), user: user._id, ...data, createdAt: nowISO(), updatedAt: nowISO() };
+  db.accounts.push(account);
+  save(db);
+  return withTotals(db, account);
+}
+
+export async function updateAccount(id, body) {
+  await wait();
+  const { db, user } = await authed();
+  const account = db.accounts.find((a) => a._id === id && a.user === user._id);
+  if (!account) throw httpError(404, 'Account not found');
+  const data = accountFrom(body);
+  if (nameTaken(db, user, data.name, id)) throw httpError(409, 'You already have an account with this name');
+  for (const f of CARD_FIELDS) delete account[f];
+  Object.assign(account, data, { updatedAt: nowISO() });
+  save(db);
+  return withTotals(db, account);
+}
+
+// Deleting an account keeps its transactions, they just become unlinked
+export async function deleteAccount(id) {
+  await wait();
+  const { db, user } = await authed();
+  const index = db.accounts.findIndex((a) => a._id === id && a.user === user._id);
+  if (index === -1) throw httpError(404, 'Account not found');
+  db.accounts.splice(index, 1);
+  let unlinked = 0;
+  for (const t of db.transactions) {
+    if (t.account === id) {
+      t.account = null;
+      unlinked += 1;
+    }
+  }
+  save(db);
+  return { message: 'Deleted', unlinked };
 }

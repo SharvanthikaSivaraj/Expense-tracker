@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { changePassword, deleteAccount, updateProfile } from '../api';
+import { changePassword, deleteMe, updateProfile } from '../api';
 import { useAuth } from '../auth';
 import { formatMoney } from '../constants';
 
@@ -78,7 +78,7 @@ export default function Settings({ dark, onToggleTheme, budget, onBudgetChange }
     setDeleteError('');
     setDeleteBusy(true);
     try {
-      await deleteAccount(deletePw);
+      await deleteMe(deletePw);
       logout();
     } catch (err) {
       setDeleteError(err.message);
