@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { DEMO_ACCOUNT, SHOW_DEMO, USE_MOCK, login as apiLogin, register as apiRegister } from '../api';
 import { useAuth } from '../auth';
+import { checkEmail } from '../emailCheck';
 import Icon from '../components/Icon';
 import { useTheme } from '../theme';
 import AuthPreview from './AuthPreview';
@@ -17,12 +18,18 @@ function strengthOf(pw) {
   return pw ? score : 0;
 }
 
+// Sign-up is strict (real ending, common typos). Log in stays lenient so older accounts can still get in.
 function validate(mode, v) {
   const errors = {};
   if (mode === 'register' && (v.name.trim().length < 2 || v.name.trim().length > 50)) {
     errors.name = 'Enter your name (2 to 50 characters)';
   }
-  if (!EMAIL_RE.test(v.email.trim())) errors.email = 'Enter a valid email address';
+  if (mode === 'register') {
+    const check = checkEmail(v.email);
+    if (!check.ok) errors.email = check.error;
+  } else if (!EMAIL_RE.test(v.email.trim())) {
+    errors.email = 'Enter a valid email address';
+  }
   if (mode === 'register') {
     if (v.password.length < 8) errors.password = 'Use at least 8 characters';
     else if (!/[A-Za-z]/.test(v.password) || !/\d/.test(v.password)) errors.password = 'Include a letter and a number';
@@ -64,6 +71,7 @@ export default function AuthPage() {
   const [busy, setBusy] = useState(false);
   const [shake, setShake] = useState(false);
   const [welcome, setWelcome] = useState(null);
+  const [suggestion, setSuggestion] = useState('');
   const timer = useRef(null);
 
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -72,13 +80,29 @@ export default function AuthPage() {
   const score = strengthOf(values.password);
 
   const set = (field) => (e) => {
+    if (field === 'email') setSuggestion('');
     setValues((v) => ({ ...v, [field]: e.target.value }));
     if (errors[field]) setErrors((er) => ({ ...er, [field]: undefined }));
     if (serverError) setServerError('');
   };
 
+  // On sign-up, check the address as soon as the field loses focus
+  function checkEmailOnBlur() {
+    if (!isRegister || !values.email.trim()) return;
+    const check = checkEmail(values.email);
+    setSuggestion(check.ok ? '' : check.suggestion || '');
+    setErrors((er) => ({ ...er, email: check.ok ? undefined : check.error }));
+  }
+
+  function applySuggestion() {
+    setValues((v) => ({ ...v, email: suggestion }));
+    setErrors((er) => ({ ...er, email: undefined }));
+    setSuggestion('');
+  }
+
   function switchMode(next) {
     if (next === mode) return;
+    setSuggestion('');
     setMode(next);
     setErrors({});
     setServerError('');
@@ -99,6 +123,7 @@ export default function AuthPage() {
       setWelcome(result.user.name.split(' ')[0]);
       timer.current = setTimeout(() => authenticate(result, remember), 1100);
     } catch (err) {
+      if (err.suggestion) setSuggestion(err.suggestion);
       fail(err.message);
     }
   }
@@ -108,6 +133,7 @@ export default function AuthPage() {
     const found = validate(mode, values);
     setErrors(found);
     setServerError('');
+    if (found.email && isRegister) setSuggestion(checkEmail(values.email).suggestion || '');
     if (Object.keys(found).length) {
       setShake(true);
       return;
@@ -209,7 +235,7 @@ export default function AuthPage() {
                   </Field>
                 )}
 
-                <Field id="email" label="Email" icon="mail" error={errors.email} valid={EMAIL_RE.test(values.email.trim())}>
+                <Field id="email" label="Email" icon="mail" error={errors.email} valid={isRegister ? checkEmail(values.email).ok : EMAIL_RE.test(values.email.trim())}>
                   <input
                     id="email"
                     className="text-input"
@@ -220,8 +246,15 @@ export default function AuthPage() {
                     autoFocus
                     value={values.email}
                     onChange={set('email')}
+                    onBlur={checkEmailOnBlur}
                   />
                 </Field>
+
+                {isRegister && suggestion && (
+                  <button type="button" className="suggest-btn" onClick={applySuggestion}>
+                    Use <strong>{suggestion}</strong>
+                  </button>
+                )}
 
                 <Field id="password" label="Password" icon="lock" error={errors.password} trailing={passwordToggle}>
                   <input

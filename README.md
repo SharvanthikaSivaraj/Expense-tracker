@@ -129,6 +129,7 @@ Set `VITE_USE_MOCK=true` instead to deploy a backend-free demo that keeps data i
 - **`/summary` is defined before `/:id`** so Express does not treat "summary" as an id.
 - **`runValidators: true` on updates**, because Mongoose skips schema validation on updates by default.
 - **Data is scoped by user.** Every query includes the owner, and request bodies are whitelisted so a client can never set `user`.
+- **Email checks on sign-up:** syntax, real suffix from the IANA list, common typos with a one-click fix, and a DNS lookup that the domain exists.
 - **Login hardening:** bcrypt hashing, identical errors for unknown email and wrong password, rate limiting on auth routes, input type checks against NoSQL operator injection, `helmet` headers.
 
 ## Documentation

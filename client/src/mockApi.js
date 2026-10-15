@@ -1,6 +1,7 @@
 // A browser-only stand-in for the Express API, backed by localStorage.
 // It mirrors the real API's responses and validation so the UI cannot tell the difference.
 // Data is per browser; clearing site data resets it.
+import { checkEmail } from './emailCheck';
 import { getToken, notifyUnauthorized } from './token';
 
 const DB_KEY = 'et-mock-db';
@@ -260,13 +261,12 @@ export async function register({ name, email, password }) {
   const db = await load();
   const nameErr = nameProblem(name);
   if (nameErr) throw httpError(400, nameErr);
-  if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-    throw httpError(400, 'Enter a valid email address');
-  }
   const passErr = passwordProblem(password);
   if (passErr) throw httpError(400, passErr);
+  const emailCheck = checkEmail(email);
+  if (!emailCheck.ok) throw httpError(400, emailCheck.error);
 
-  const clean = email.trim().toLowerCase();
+  const clean = emailCheck.email;
   if (db.users.some((u) => u.email === clean)) {
     throw httpError(409, 'An account with this email already exists');
   }

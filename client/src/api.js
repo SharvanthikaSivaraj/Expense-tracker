@@ -37,6 +37,7 @@ function fail(err) {
     (err.request ? 'Cannot reach the server. Is the backend running?' : err.message);
   const error = new Error(message);
   error.status = err.response?.status;
+  error.suggestion = err.response?.data?.suggestion;
   throw error;
 }
 

@@ -9,6 +9,7 @@ const Goal = require('../models/Goal');
 const Reminder = require('../models/Reminder');
 const Transaction = require('../models/Transaction');
 const auth = require('../middleware/auth');
+const { validateEmail } = require('../utils/email');
 
 const router = express.Router();
 
@@ -43,9 +44,12 @@ router.post('/register', limiter, async (req, res) => {
   const problem = passwordProblem(password);
   if (problem) return res.status(400).json({ error: problem });
 
+  const emailCheck = await validateEmail(email);
+  if (!emailCheck.ok) return res.status(400).json({ error: emailCheck.error, suggestion: emailCheck.suggestion });
+
   try {
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email, passwordHash });
+    const user = await User.create({ name, email: emailCheck.email, passwordHash });
     res.status(201).json({ token: sign(user), user });
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'An account with this email already exists' });

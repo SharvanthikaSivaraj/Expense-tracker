@@ -24,6 +24,11 @@ All requests and responses use JSON. All errors use this shape:
 
 Passwords: 8 to 72 characters with at least one letter and one number.
 
+Email on sign-up is checked strictly: valid syntax, an ending that is a real internet suffix (IANA list, so
+`name@gmail.con` is rejected), common provider typos (`gmial.com`), and the domain must exist (DNS lookup).
+A rejected address returns 400 with `{ error, suggestion? }`, where `suggestion` is a corrected address when one is
+likely. Log in stays lenient. A mailbox itself can only be proven by sending a confirmation email.
+
 ---
 
 ## Accounts
