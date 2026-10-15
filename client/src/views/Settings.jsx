@@ -1,15 +1,9 @@
 import { useState } from 'react';
 import { changePassword, deleteMe, updateProfile } from '../api';
 import { useAuth } from '../auth';
-import { formatMoney } from '../constants';
 
-export default function Settings({ dark, onToggleTheme, budget, onBudgetChange }) {
+export default function Settings({ dark, onToggleTheme, onOpenPlan }) {
   const { user, setUser, logout } = useAuth();
-
-  // budget
-  const [value, setValue] = useState(budget ? String(budget) : '');
-  const [budgetError, setBudgetError] = useState('');
-  const [budgetSaved, setBudgetSaved] = useState(false);
 
   // profile
   const [name, setName] = useState(user.name);
@@ -26,19 +20,6 @@ export default function Settings({ dark, onToggleTheme, budget, onBudgetChange }
   const [deletePw, setDeletePw] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [deleteBusy, setDeleteBusy] = useState(false);
-
-  function saveBudget(e) {
-    e.preventDefault();
-    const n = Number(value);
-    if (value === '' || Number.isNaN(n) || n <= 0) {
-      setBudgetError('Enter a budget greater than 0');
-      return;
-    }
-    setBudgetError('');
-    onBudgetChange(n);
-    setBudgetSaved(true);
-    setTimeout(() => setBudgetSaved(false), 1800);
-  }
 
   async function saveProfile(e) {
     e.preventDefault();
@@ -152,32 +133,14 @@ export default function Settings({ dark, onToggleTheme, budget, onBudgetChange }
       </section>
 
       <section className="panel">
-        <h2>Monthly budget</h2>
-        <p className="muted">
-          {budget ? `Current limit: ${formatMoney(budget)} per month.` : 'No budget set yet.'} It applies to every month
-          and is saved in this browser.
-        </p>
-        <form className="budget-form" onSubmit={saveBudget} noValidate>
-          <div className="amount-input expense">
-            <span>₹</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              min="0"
-              placeholder="e.g. 20000"
-              value={value}
-              aria-label="Monthly budget"
-              onChange={(e) => setValue(e.target.value)}
-            />
+        <h2>Budgets</h2>
+        <div className="setting-row">
+          <div>
+            <strong>Monthly and category budgets</strong>
+            <p className="muted">Set limits, track goals and bills in the Plan page.</p>
           </div>
-          {budgetError && <span className="field-error">{budgetError}</span>}
-          <div className="form-actions">
-            <button type="button" className="btn" onClick={() => { onBudgetChange(0); setValue(''); setBudgetError(''); }} disabled={!budget}>
-              Remove
-            </button>
-            <button type="submit" className="btn primary">{budgetSaved ? 'Saved' : 'Save budget'}</button>
-          </div>
-        </form>
+          <button type="button" className="btn" onClick={onOpenPlan}>Open Plan</button>
+        </div>
       </section>
 
       <section className="panel danger-zone">

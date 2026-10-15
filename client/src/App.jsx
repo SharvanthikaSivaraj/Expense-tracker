@@ -5,8 +5,12 @@ import {
   deleteAccount,
   deleteTransaction,
   getAccounts,
+  getBudgets,
+  getGoals,
+  getReminders,
   getSummary,
   getTransactions,
+  payReminder,
   updateAccount,
   updateTransaction,
 } from './api';
@@ -18,10 +22,11 @@ import Drawer from './components/Drawer';
 import MonthPicker from './components/MonthPicker';
 import Nav from './components/Nav';
 import TransactionForm from './components/TransactionForm';
-import { useBudget } from './hooks';
+import Icon from './components/Icon';
 import Accounts from './views/Accounts';
 import Dashboard from './views/Dashboard';
 import Insights from './views/Insights';
+import Plan from './views/Plan';
 import Settings from './views/Settings';
 import Transactions from './views/Transactions';
 
@@ -36,11 +41,14 @@ export default function App() {
   const [summary, setSummary] = useState(EMPTY_SUMMARY);
   const [prevSummary, setPrevSummary] = useState(null);
   const [accounts, setAccounts] = useState([]);
+  const [budgets, setBudgets] = useState([]);
+  const [goals, setGoals] = useState([]);
+  const [reminders, setReminders] = useState([]);
+  const [planTab, setPlanTab] = useState('budgets');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [drawer, setDrawer] = useState(null); // null | { kind: 'transaction', transaction, type? } | { kind: 'account', account }
   const [toast, setToast] = useState('');
-  const [budget, setBudget] = useBudget(user._id);
   const latest = useRef(0);
 
   useEffect(() => {
@@ -55,17 +63,23 @@ export default function App() {
     setLoading(true);
     setError('');
     try {
-      const [list, sum, prev, accts] = await Promise.all([
+      const [list, sum, prev, accts, buds, gls, rems] = await Promise.all([
         getTransactions(m),
         getSummary(m),
         getSummary(shiftMonth(m, -1)).catch(() => null), // comparison is optional
         getAccounts(),
+        getBudgets(),
+        getGoals(),
+        getReminders(),
       ]);
       if (id !== latest.current) return; // a newer request replaced this one
       setTransactions(list);
       setSummary(sum);
       setPrevSummary(prev);
       setAccounts(accts);
+      setBudgets(buds);
+      setGoals(gls);
+      setReminders(rems);
     } catch (err) {
       if (id === latest.current) setError(err.message);
     } finally {
@@ -126,7 +140,28 @@ export default function App() {
     }
   }
 
+  async function handlePayBill(r) {
+    try {
+      await payReminder(r._id, {});
+      setToast(`${r.title} paid and recorded`);
+      await refresh(month);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  const overallBudget = budgets.find((b) => b.category === 'ALL')?.limit || 0;
+
   const actions = {
+    payBill: handlePayBill,
+    seeBills: () => {
+      setPlanTab('bills');
+      setView('plan');
+    },
+    openPlan: () => {
+      setPlanTab('budgets');
+      setView('plan');
+    },
     add: (type) => setDrawer({ kind: 'transaction', transaction: null, type: type === 'income' ? 'income' : 'expense' }),
     edit: (t) => setDrawer({ kind: 'transaction', transaction: t }),
     addAccount: () => setDrawer({ kind: 'account', account: null }),
@@ -136,6 +171,7 @@ export default function App() {
     remove: handleDelete,
     seeAll: () => setView('transactions'),
     openSettings: () => setView('settings'),
+    notify: (message) => setToast(message),
   };
 
   const defaultDate = month === currentMonth() ? todayISO() : `${month}-01`;
@@ -143,6 +179,7 @@ export default function App() {
     dashboard: [`${greeting()}, ${user.name.split(' ')[0]}`, `Here is your ${monthLabel(month)} overview`],
     transactions: ['Transactions', `Everything for ${monthLabel(month)}`],
     accounts: ['Accounts', 'Your banks, cards and wallets'],
+    plan: ['Plan', `Budgets, goals and bills for ${monthLabel(month)}`],
     insights: ['Insights', `How ${monthLabel(month)} looks`],
     settings: ['Settings', 'Make it yours'],
   };
@@ -161,6 +198,9 @@ export default function App() {
       />
 
       <div className="content">
+        <button type="button" className="icon-btn topbar-settings" aria-label="Settings" onClick={() => setView('settings')}>
+          <Icon name="sliders" size={20} />
+        </button>
         <header className="topbar">
           <div>
             <h1>{title}</h1>
@@ -184,7 +224,8 @@ export default function App() {
             transactions={transactions}
             loading={loading}
             month={month}
-            budget={budget}
+            budget={overallBudget}
+            reminders={reminders}
             dark={dark}
             accounts={accounts}
             actions={actions}
@@ -194,12 +235,25 @@ export default function App() {
           <Transactions transactions={transactions} accounts={accounts} loading={loading} actions={actions} />
         )}
         {view === 'accounts' && <Accounts accounts={accounts} holder={user.name} loading={loading} actions={actions} />}
+        {view === 'plan' && (
+          <Plan
+            tab={planTab}
+            onTab={setPlanTab}
+            summary={summary}
+            budgets={budgets}
+            goals={goals}
+            reminders={reminders}
+            onChanged={(message) => {
+              if (message) setToast(message);
+              refresh(month);
+            }}
+            onError={setError}
+          />
+        )}
         {view === 'insights' && (
-          <Insights summary={summary} transactions={transactions} month={month} budget={budget} dark={dark} />
+          <Insights summary={summary} transactions={transactions} month={month} budget={overallBudget} dark={dark} />
         )}
-        {view === 'settings' && (
-          <Settings dark={dark} onToggleTheme={toggleTheme} budget={budget} onBudgetChange={setBudget} />
-        )}
+        {view === 'settings' && <Settings dark={dark} onToggleTheme={toggleTheme} onOpenPlan={actions.openPlan} />}
         </div>
       </div>
 

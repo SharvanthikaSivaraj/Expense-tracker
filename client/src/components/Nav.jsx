@@ -4,6 +4,7 @@ const ITEMS = [
   { id: 'dashboard', label: 'Home', icon: 'home' },
   { id: 'transactions', label: 'Transactions', icon: 'list' },
   { id: 'accounts', label: 'Accounts', icon: 'wallet' },
+  { id: 'plan', label: 'Plan', icon: 'target' },
   { id: 'insights', label: 'Insights', icon: 'chart' },
   { id: 'settings', label: 'Settings', icon: 'sliders' },
 ];
@@ -17,7 +18,7 @@ export default function Nav({ view, onView, onAdd, dark, onToggleTheme, user, on
     .join('');
 
   const item = (it) => (
-    <li key={it.id}>
+    <li key={it.id} className={it.id === 'settings' ? 'nav-settings' : undefined}>
       <button
         type="button"
         className={view === it.id ? 'on' : ''}
