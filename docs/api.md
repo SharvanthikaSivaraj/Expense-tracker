@@ -26,6 +26,28 @@ Passwords: 8 to 72 characters with at least one letter and one number.
 
 ---
 
+## Accounts
+
+Banks, cash, wallets and cards. Requires a token. Balances are computed, never stored:
+`balance = openingBalance + income - expense` of the transactions linked to the account.
+
+| Method | Endpoint | Purpose | Success | Errors |
+|---|---|---|---|---|
+| GET | `/api/accounts` | List with `balance`, `income`, `expense`, `transactionCount` | 200 | 401 |
+| POST | `/api/accounts` | Create | 201 | 400, 409 name exists |
+| PUT | `/api/accounts/:id` | Update | 200 | 400, 404, 409 |
+| DELETE | `/api/accounts/:id` | Delete, keeps its transactions (unlinked) | 200 `{ message, unlinked }` | 400, 404 |
+
+Body fields: `name` (max 40), `type` (`bank`, `cash`, `wallet`, `credit_card`, `debit_card`),
+`openingBalance`, `color` (`teal`, `indigo`, `amber`, `rose`, `slate`).
+Cards only: `network` (`visa`, `mastercard`, `rupay`, `amex`, `other`), `last4` (4 digits), `expiry` (`MM/YY`),
+and for credit cards `creditLimit`. Full card numbers and CVV are never stored; fields that do not apply
+to the type are dropped.
+
+Transactions accept an optional `account` id (or `null`). `GET /api/transactions?account=<id>` filters by account.
+
+---
+
 ## 1. GET /api/transactions?month=2026-10
 List transactions for a month, newest first. If `month` is omitted, returns all.
 

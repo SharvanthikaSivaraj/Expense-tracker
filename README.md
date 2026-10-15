@@ -10,6 +10,7 @@ A MERN app to record daily income and expenses, sort them into categories, and s
 
 ## Features
 - Accounts with login: register, log in, edit profile, change password, delete account (each user sees only their own data)
+- Accounts and cards (bank, cash, wallet, credit or debit card) with computed balances and credit utilisation; link transactions to an account
 - Add, edit and delete transactions (amount, income or expense, category, date, payment method, optional note)
 - View transactions for any month, newest first
 - Monthly summary: total income, total expense and balance, computed with MongoDB aggregation
@@ -82,6 +83,10 @@ Base URL: `/api`. All errors return `{ "error": "message" }`. Transaction endpoi
 | PUT | `/auth/me` | Update name | 200 | 400, 401 |
 | PUT | `/auth/me/password` | Change password | 200 | 400, 401 |
 | DELETE | `/auth/me` | Delete account and its data | 200 | 400, 401 |
+| GET | `/accounts` | List accounts with computed balances | 200 | 401 |
+| POST | `/accounts` | Create account or card (last 4 digits only) | 201 | 400, 409 |
+| PUT | `/accounts/:id` | Update account | 200 | 400, 404, 409 |
+| DELETE | `/accounts/:id` | Delete account, keep its transactions | 200 | 400, 404 |
 
 | Method | Endpoint | Purpose | Success | Errors |
 |---|---|---|---|---|
