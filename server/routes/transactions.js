@@ -1,8 +1,19 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
+const auth = require('../middleware/auth');
 
 const router = express.Router();
+router.use(auth);
+
+const FIELDS = ['amount', 'type', 'category', 'date', 'paymentMethod', 'note'];
+
+// Whitelist body fields so a client can never set user, _id or timestamps
+function pick(body) {
+  const out = {};
+  if (body && typeof body === 'object') for (const f of FIELDS) if (body[f] !== undefined) out[f] = body[f];
+  return out;
+}
 
 // "2026-10" -> [2026-10-01T00:00Z, 2026-11-01T00:00Z)
 function monthRange(month) {
@@ -21,7 +32,10 @@ router.get('/summary', async (req, res) => {
   if (!range) return res.status(400).json({ error: 'month is required in YYYY-MM format' });
 
   try {
-    const match = { date: { $gte: range.start, $lt: range.end } };
+    const match = {
+      user: new mongoose.Types.ObjectId(req.userId),
+      date: { $gte: range.start, $lt: range.end },
+    };
 
     const [totals, byCategory] = await Promise.all([
       Transaction.aggregate([
@@ -44,7 +58,7 @@ router.get('/summary', async (req, res) => {
 });
 
 router.get('/', async (req, res) => {
-  const filter = {};
+  const filter = { user: req.userId };
   if (req.query.month !== undefined) {
     const range = monthRange(req.query.month);
     if (!range) return res.status(400).json({ error: 'month must be in YYYY-MM format' });
@@ -61,7 +75,7 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const transaction = await Transaction.create(req.body);
+    const transaction = await Transaction.create({ ...pick(req.body), user: req.userId });
     res.status(201).json(transaction);
   } catch (err) {
     if (err.name === 'ValidationError') return res.status(400).json({ error: validationMessage(err) });
@@ -73,10 +87,11 @@ router.put('/:id', async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid id' });
 
   try {
-    const updated = await Transaction.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
+    const updated = await Transaction.findOneAndUpdate(
+      { _id: req.params.id, user: req.userId },
+      pick(req.body),
+      { new: true, runValidators: true }
+    );
     if (!updated) return res.status(404).json({ error: 'Transaction not found' });
     res.json(updated);
   } catch (err) {
@@ -89,7 +104,7 @@ router.delete('/:id', async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid id' });
 
   try {
-    const deleted = await Transaction.findByIdAndDelete(req.params.id);
+    const deleted = await Transaction.findOneAndDelete({ _id: req.params.id, user: req.userId });
     if (!deleted) return res.status(404).json({ error: 'Transaction not found' });
     res.json({ message: 'Deleted' });
   } catch (err) {
