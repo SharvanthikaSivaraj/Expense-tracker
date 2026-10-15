@@ -3,6 +3,7 @@ import Icon from './Icon';
 const ITEMS = [
   { id: 'dashboard', label: 'Home', icon: 'home' },
   { id: 'transactions', label: 'Transactions', icon: 'list' },
+  { id: 'accounts', label: 'Accounts', icon: 'wallet' },
   { id: 'insights', label: 'Insights', icon: 'chart' },
   { id: 'settings', label: 'Settings', icon: 'sliders' },
 ];

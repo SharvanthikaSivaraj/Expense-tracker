@@ -32,7 +32,7 @@ function groupByDay(items) {
   }));
 }
 
-function Row({ t, onEdit, onDelete }) {
+function Row({ t, accountName, onEdit, onDelete }) {
   const meta = categoryMeta(t.category);
   return (
     <li className="row">
@@ -42,7 +42,7 @@ function Row({ t, onEdit, onDelete }) {
       <div className="row-main">
         <strong>{t.category}</strong>
         <span className="row-sub">
-          <span className="tag">{methodLabel(t.paymentMethod)}</span>
+          <span className="tag">{accountName || methodLabel(t.paymentMethod)}</span>
           {t.note && <span className="note">{t.note}</span>}
         </span>
       </div>
@@ -64,6 +64,7 @@ function Row({ t, onEdit, onDelete }) {
 
 export default function TransactionList({
   transactions,
+  accounts = [],
   loading,
   onEdit,
   onDelete,
@@ -75,6 +76,8 @@ export default function TransactionList({
   const [filter, setFilter] = useState('all');
   const [category, setCategory] = useState('all');
   const [sort, setSort] = useState('newest');
+  const [accountFilter, setAccountFilter] = useState('all');
+  const accountNames = useMemo(() => Object.fromEntries(accounts.map((a) => [a._id, a.name])), [accounts]);
   const [query, setQuery] = useState('');
 
   const categories = useMemo(() => [...new Set(transactions.map((t) => t.category))].sort(), [transactions]);
@@ -87,6 +90,7 @@ export default function TransactionList({
       (t) =>
         (filter === 'all' || t.type === filter) &&
         (category === 'all' || t.category === category) &&
+        (accountFilter === 'all' || (accountFilter === 'none' ? !t.account : t.account === accountFilter)) &&
         (!q || [t.category, t.note || '', t.paymentMethod].some((s) => s.toLowerCase().includes(q)))
     );
 
@@ -94,7 +98,7 @@ export default function TransactionList({
     if (sort === 'high') return { groups: null, flat: [...list].sort((a, b) => b.amount - a.amount) };
     if (sort === 'low') return { groups: null, flat: [...list].sort((a, b) => a.amount - b.amount) };
     return { groups: groupByDay(list), flat: null };
-  }, [transactions, compact, limit, filter, category, sort, query]);
+  }, [transactions, compact, limit, filter, category, accountFilter, sort, query]);
 
   const shown = flat ? flat.length : groups.reduce((n, g) => n + g.items.length, 0);
 
@@ -139,6 +143,15 @@ export default function TransactionList({
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
+          {accounts.length > 0 && (
+            <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)} aria-label="Filter by account">
+              <option value="all">All accounts</option>
+              <option value="none">No account</option>
+              {accounts.map((a) => (
+                <option key={a._id} value={a._id}>{a.name}</option>
+              ))}
+            </select>
+          )}
           <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort">
             {SORTS.map((s) => (
               <option key={s.id} value={s.id}>{s.label}</option>
@@ -169,7 +182,7 @@ export default function TransactionList({
       ) : flat ? (
         <ul className="flat">
           {flat.map((t) => (
-            <Row key={t._id} t={t} onEdit={onEdit} onDelete={onDelete} />
+            <Row key={t._id} t={t} accountName={accountNames[t.account]} onEdit={onEdit} onDelete={onDelete} />
           ))}
         </ul>
       ) : (
@@ -181,7 +194,7 @@ export default function TransactionList({
             </div>
             <ul>
               {g.items.map((t) => (
-                <Row key={t._id} t={t} onEdit={onEdit} onDelete={onDelete} />
+                <Row key={t._id} t={t} accountName={accountNames[t.account]} onEdit={onEdit} onDelete={onDelete} />
               ))}
             </ul>
           </div>

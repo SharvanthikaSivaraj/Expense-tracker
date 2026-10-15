@@ -1,19 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  createAccount,
   createTransaction,
+  deleteAccount,
   deleteTransaction,
+  getAccounts,
   getSummary,
   getTransactions,
+  updateAccount,
   updateTransaction,
 } from './api';
 import { useAuth } from './auth';
 import { useTheme } from './theme';
 import { currentMonth, formatDate, formatMoney, greeting, monthLabel, shiftMonth, todayISO } from './constants';
+import AccountForm from './components/AccountForm';
 import Drawer from './components/Drawer';
 import MonthPicker from './components/MonthPicker';
 import Nav from './components/Nav';
 import TransactionForm from './components/TransactionForm';
 import { useBudget } from './hooks';
+import Accounts from './views/Accounts';
 import Dashboard from './views/Dashboard';
 import Insights from './views/Insights';
 import Settings from './views/Settings';
@@ -29,9 +35,10 @@ export default function App() {
   const [transactions, setTransactions] = useState([]);
   const [summary, setSummary] = useState(EMPTY_SUMMARY);
   const [prevSummary, setPrevSummary] = useState(null);
+  const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [drawer, setDrawer] = useState(null); // null | { transaction: object | null, type?: string }
+  const [drawer, setDrawer] = useState(null); // null | { kind: 'transaction', transaction, type? } | { kind: 'account', account }
   const [toast, setToast] = useState('');
   const [budget, setBudget] = useBudget(user._id);
   const latest = useRef(0);
@@ -48,15 +55,17 @@ export default function App() {
     setLoading(true);
     setError('');
     try {
-      const [list, sum, prev] = await Promise.all([
+      const [list, sum, prev, accts] = await Promise.all([
         getTransactions(m),
         getSummary(m),
         getSummary(shiftMonth(m, -1)).catch(() => null), // comparison is optional
+        getAccounts(),
       ]);
       if (id !== latest.current) return; // a newer request replaced this one
       setTransactions(list);
       setSummary(sum);
       setPrevSummary(prev);
+      setAccounts(accts);
     } catch (err) {
       if (id === latest.current) setError(err.message);
     } finally {
@@ -71,7 +80,7 @@ export default function App() {
   const closeDrawer = useCallback(() => setDrawer(null), []);
 
   async function handleSave(data) {
-    const editing = drawer?.transaction;
+    const editing = drawer?.kind === 'transaction' ? drawer.transaction : null;
     if (editing) await updateTransaction(editing._id, data);
     else await createTransaction(data);
 
@@ -94,9 +103,36 @@ export default function App() {
     }
   }
 
+  async function handleSaveAccount(data) {
+    const editing = drawer?.kind === 'account' ? drawer.account : null;
+    if (editing) await updateAccount(editing._id, data);
+    else await createAccount(data);
+    setDrawer(null);
+    setToast(editing ? 'Account updated' : 'Account added');
+    await refresh(month);
+  }
+
+  async function handleDeleteAccount(a) {
+    const linked = a.transactionCount
+      ? `\n${a.transactionCount} linked transaction${a.transactionCount === 1 ? '' : 's'} will be kept but unlinked.`
+      : '';
+    if (!window.confirm(`Delete the account "${a.name}"?${linked}`)) return;
+    try {
+      await deleteAccount(a._id);
+      setToast('Account deleted');
+      await refresh(month);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   const actions = {
-    add: (type) => setDrawer({ transaction: null, type: type === 'income' ? 'income' : 'expense' }),
-    edit: (t) => setDrawer({ transaction: t }),
+    add: (type) => setDrawer({ kind: 'transaction', transaction: null, type: type === 'income' ? 'income' : 'expense' }),
+    edit: (t) => setDrawer({ kind: 'transaction', transaction: t }),
+    addAccount: () => setDrawer({ kind: 'account', account: null }),
+    editAccount: (a) => setDrawer({ kind: 'account', account: a }),
+    removeAccount: handleDeleteAccount,
+    seeAccounts: () => setView('accounts'),
     remove: handleDelete,
     seeAll: () => setView('transactions'),
     openSettings: () => setView('settings'),
@@ -106,6 +142,7 @@ export default function App() {
   const titles = {
     dashboard: [`${greeting()}, ${user.name.split(' ')[0]}`, `Here is your ${monthLabel(month)} overview`],
     transactions: ['Transactions', `Everything for ${monthLabel(month)}`],
+    accounts: ['Accounts', 'Your banks, cards and wallets'],
     insights: ['Insights', `How ${monthLabel(month)} looks`],
     settings: ['Settings', 'Make it yours'],
   };
@@ -129,7 +166,7 @@ export default function App() {
             <h1>{title}</h1>
             <p className="sub">{subtitle}</p>
           </div>
-          {view !== 'settings' && <MonthPicker month={month} onChange={setMonth} loading={loading} />}
+          {view !== 'settings' && view !== 'accounts' && <MonthPicker month={month} onChange={setMonth} loading={loading} />}
         </header>
 
         {error && (
@@ -149,10 +186,14 @@ export default function App() {
             month={month}
             budget={budget}
             dark={dark}
+            accounts={accounts}
             actions={actions}
           />
         )}
-        {view === 'transactions' && <Transactions transactions={transactions} loading={loading} actions={actions} />}
+        {view === 'transactions' && (
+          <Transactions transactions={transactions} accounts={accounts} loading={loading} actions={actions} />
+        )}
+        {view === 'accounts' && <Accounts accounts={accounts} holder={user.name} loading={loading} actions={actions} />}
         {view === 'insights' && (
           <Insights summary={summary} transactions={transactions} month={month} budget={budget} dark={dark} />
         )}
@@ -162,11 +203,23 @@ export default function App() {
         </div>
       </div>
 
-      {drawer && (
+      {drawer && drawer.kind === 'account' && (
+        <Drawer title={drawer.account ? 'Edit account' : 'New account'} onClose={closeDrawer}>
+          <AccountForm
+            key={drawer.account?._id || 'new-account'}
+            account={drawer.account}
+            onSave={handleSaveAccount}
+            onCancel={closeDrawer}
+          />
+        </Drawer>
+      )}
+
+      {drawer && drawer.kind === 'transaction' && (
         <Drawer title={drawer.transaction ? 'Edit transaction' : 'New transaction'} onClose={closeDrawer}>
           <TransactionForm
             key={drawer.transaction?._id || 'new'}
             transaction={drawer.transaction}
+            accounts={accounts}
             defaultDate={defaultDate}
             defaultType={drawer.type}
             onSave={handleSave}

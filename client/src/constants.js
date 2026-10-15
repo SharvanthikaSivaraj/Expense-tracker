@@ -25,6 +25,26 @@ export const PAYMENT_METHODS = [
   { value: 'bank', label: 'Bank', icon: 'bank' },
 ];
 
+export const ACCOUNT_TYPES = [
+  { value: 'bank', label: 'Bank', icon: 'bank' },
+  { value: 'cash', label: 'Cash', icon: 'cash' },
+  { value: 'wallet', label: 'Wallet', icon: 'wallet' },
+  { value: 'credit_card', label: 'Credit card', icon: 'card' },
+  { value: 'debit_card', label: 'Debit card', icon: 'card' },
+];
+export const accountTypeMeta = (type) => ACCOUNT_TYPES.find((t) => t.value === type) || ACCOUNT_TYPES[0];
+export const isCardType = (type) => type === 'credit_card' || type === 'debit_card';
+
+export const NETWORKS = [
+  { value: 'visa', label: 'Visa' },
+  { value: 'mastercard', label: 'Mastercard' },
+  { value: 'rupay', label: 'RuPay' },
+  { value: 'amex', label: 'Amex' },
+  { value: 'other', label: 'Other' },
+];
+export const networkLabel = (value) => NETWORKS.find((n) => n.value === value)?.label || '';
+export const ACCOUNT_COLORS = ['teal', 'indigo', 'amber', 'rose', 'slate'];
+
 const money = new Intl.NumberFormat('en-IN', {
   style: 'currency',
   currency: 'INR',

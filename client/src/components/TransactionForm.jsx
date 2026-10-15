@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { categoryMeta, CATEGORIES, PAYMENT_METHODS, toInputDate } from '../constants';
+import { accountTypeMeta, categoryMeta, CATEGORIES, PAYMENT_METHODS, toInputDate } from '../constants';
 import Icon from './Icon';
 
 function initialValues(transaction, defaultDate, defaultType = 'expense') {
@@ -10,10 +10,11 @@ function initialValues(transaction, defaultDate, defaultType = 'expense') {
       category: transaction.category,
       date: toInputDate(transaction.date),
       paymentMethod: transaction.paymentMethod,
+      account: transaction.account || '',
       note: transaction.note || '',
     };
   }
-  return { amount: '', type: defaultType, category: '', date: defaultDate, paymentMethod: 'upi', note: '' };
+  return { amount: '', type: defaultType, category: '', date: defaultDate, paymentMethod: 'upi', account: '', note: '' };
 }
 
 function validate(v) {
@@ -26,7 +27,7 @@ function validate(v) {
   return errors;
 }
 
-export default function TransactionForm({ transaction, defaultDate, defaultType, onSave, onCancel }) {
+export default function TransactionForm({ transaction, accounts = [], defaultDate, defaultType, onSave, onCancel }) {
   const [values, setValues] = useState(() => initialValues(transaction, defaultDate, defaultType));
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState('');
@@ -53,7 +54,12 @@ export default function TransactionForm({ transaction, defaultDate, defaultType,
 
     setSaving(true);
     try {
-      await onSave({ ...values, amount: Number(values.amount), note: values.note.trim() });
+      await onSave({
+        ...values,
+        amount: Number(values.amount),
+        account: values.account || null,
+        note: values.note.trim(),
+      });
     } catch (err) {
       setServerError(err.message);
       setSaving(false);
@@ -138,6 +144,34 @@ export default function TransactionForm({ transaction, defaultDate, defaultType,
           ))}
         </div>
       </div>
+
+      {accounts.length > 0 && (
+        <div className="field">
+          <span className="field-label">Account</span>
+          <div className="chips" role="group" aria-label="Account">
+            <button
+              type="button"
+              className={`chip ${values.account === '' ? 'on' : ''}`}
+              aria-pressed={values.account === ''}
+              onClick={() => pick('account', '')}
+            >
+              None
+            </button>
+            {accounts.map((a) => (
+              <button
+                key={a._id}
+                type="button"
+                className={`chip ${values.account === a._id ? 'on' : ''}`}
+                aria-pressed={values.account === a._id}
+                onClick={() => pick('account', a._id)}
+              >
+                <Icon name={accountTypeMeta(a.type).icon} size={16} />
+                {a.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="field">
         <label htmlFor="note">
