@@ -12,6 +12,7 @@ A MERN app to record daily income and expenses, sort them into categories, and s
 - Accounts with login: register, log in, edit profile, change password, delete account (each user sees only their own data)
 - Accounts and cards (bank, cash, wallet, credit or debit card) with computed balances and credit utilisation; link transactions to an account
 - Plan page: overall and per-category budgets with progress, savings goals with contributions, and bill reminders (mark paid records the expense and rolls monthly bills forward)
+- Export the visible transactions to CSV (spreadsheet-safe)
 - Add, edit and delete transactions (amount, income or expense, category, date, payment method, optional note)
 - View transactions for any month, newest first
 - Monthly summary: total income, total expense and balance, computed with MongoDB aggregation
@@ -71,7 +72,7 @@ cd client
 npm install
 npm run dev              # http://localhost:5173
 ```
-The client starts in **demo mode** (`VITE_USE_MOCK=true`): accounts and transactions live in your browser's storage, so it works without the backend. Set `VITE_USE_MOCK=false` to use the Express API, and `VITE_API_URL` if it is not `http://localhost:5001/api` (see `client/.env.example`).
+The client talks to the Express API and MongoDB. Set `VITE_API_URL` if the API is not at `http://localhost:5001/api`, and `VITE_DEMO_LOGIN=true` to show a "Use demo account" button (run `npm run seed` in `server/` first). For an offline demo that needs no backend, set `VITE_USE_MOCK=true`; data then lives in the browser's storage. See `client/.env.example`.
 
 ## API
 Base URL: `/api`. All errors return `{ "error": "message" }`. Transaction endpoints require `Authorization: Bearer <token>`.
@@ -101,6 +102,23 @@ Base URL: `/api`. All errors return `{ "error": "message" }`. Transaction endpoi
 | GET | `/transactions/summary?month=2026-10` | Totals and expense by category | 200 | 400, 500 |
 
 Full request and response examples are in [docs/api.md](docs/api.md).
+
+## Deployment
+
+**Database:** MongoDB Atlas. In Network Access allow `0.0.0.0/0` (Render's IPs are not fixed) and use a strong database user password.
+
+**Backend on Render**
+1. New Blueprint (uses `render.yaml`), or a Web Service with root directory `server`, build `npm install`, start `node server.js`.
+2. Set `MONGO_URI` (include the database name `expense_tracker`), `JWT_SECRET` (a long random string) and `CLIENT_URL` (the Vercel URL, no trailing slash).
+3. Check `https://<service>.onrender.com/api/health` returns `{"status":"ok"}`.
+
+**Frontend on Vercel**
+1. Import the repo with root directory `client` (framework: Vite).
+2. Environment variable: `VITE_API_URL=https://<service>.onrender.com/api` (optionally `VITE_DEMO_LOGIN=true` after running the seed against the production database).
+3. Redeploy after changing variables (they are baked in at build time).
+4. Put the Vercel URL into `CLIENT_URL` on Render so CORS only allows your site.
+
+Set `VITE_USE_MOCK=true` instead to deploy a backend-free demo that keeps data in each visitor's browser.
 
 ## Design decisions
 - **Amounts are always positive.** `type` decides whether it adds to or subtracts from the balance.

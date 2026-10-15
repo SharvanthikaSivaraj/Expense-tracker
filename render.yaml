@@ -1,0 +1,20 @@
+# Render blueprint: creates the API web service from the server/ folder.
+# Secrets are marked sync: false, so Render asks for them in the dashboard and they are never committed.
+services:
+  - type: web
+    name: expense-tracker-api
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CLIENT_URL
+        sync: false
