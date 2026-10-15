@@ -2,7 +2,9 @@
 
 A MERN app to record daily income and expenses, sort them into categories, and see a monthly summary with charts.
 
-**Live app:** _add Vercel URL_ &nbsp;|&nbsp; **API:** _add Render URL_
+**Live app:** https://expense-tracker-three-sigma-94.vercel.app &nbsp;|&nbsp; **API:** https://expense-tracker-api-zgkq.onrender.com/api/health
+
+Try it with the demo account: `demo@expensetracker.dev` / `Demo1234` (use the "Use demo" button on the login page).
 
 > The backend runs on a free Render plan, so the first request after a period of inactivity can take about 50 seconds.
 
