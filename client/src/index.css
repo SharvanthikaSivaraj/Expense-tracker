@@ -970,3 +970,5 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   .bill-row { flex-wrap: wrap; }
   .bill-row .row-main { flex-basis: calc(100% - 60px); }
 }
+
+.export-btn { display: inline-flex; align-items: center; gap: 6px; }

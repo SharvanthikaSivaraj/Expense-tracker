@@ -5,9 +5,12 @@ import { getToken, notifyUnauthorized } from './token';
 export { getToken, setToken, setUnauthorizedHandler } from './token';
 export { DEMO_ACCOUNT } from './mockApi';
 
-// Demo mode keeps everything in this browser (see mockApi.js).
-// Set VITE_USE_MOCK=false to talk to the Express API instead.
-export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
+// By default the app talks to the Express API and MongoDB.
+// Set VITE_USE_MOCK=true for an offline demo that keeps everything in this browser (see mockApi.js).
+export const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
+
+// Show the "Use demo account" shortcut (the demo user is created by `npm run seed` on the server)
+export const SHOW_DEMO = USE_MOCK || import.meta.env.VITE_DEMO_LOGIN === 'true';
 
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5001/api',

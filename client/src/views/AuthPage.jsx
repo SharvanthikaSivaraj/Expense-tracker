@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { DEMO_ACCOUNT, USE_MOCK, login as apiLogin, register as apiRegister } from '../api';
+import { DEMO_ACCOUNT, SHOW_DEMO, USE_MOCK, login as apiLogin, register as apiRegister } from '../api';
 import { useAuth } from '../auth';
 import Icon from '../components/Icon';
 import { useTheme } from '../theme';
@@ -301,11 +301,13 @@ export default function AuthPage() {
                 </button>
               </form>
 
-              {USE_MOCK && !isRegister && (
+              {SHOW_DEMO && !isRegister && (
                 <div className="demo-box">
                   <div>
                     <strong>Demo mode</strong>
-                    <p className="muted">Data stays in this browser. Try the sample account.</p>
+                    <p className="muted">
+                      {USE_MOCK ? 'Data stays in this browser. ' : ''}Try the sample account.
+                    </p>
                   </div>
                   <button
                     type="button"
