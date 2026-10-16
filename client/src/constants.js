@@ -4,24 +4,24 @@ export const CATEGORIES = {
 };
 
 export const CATEGORY_META = {
-  Food: { color: '#e08a3c' },
-  Transport: { color: '#3b82b6' },
-  Rent: { color: '#6d7fcc' },
-  Shopping: { color: '#c4638f' },
-  Bills: { color: '#c9a227' },
-  Health: { color: '#2fa58a' },
-  Entertainment: { color: '#9a78c9' },
-  Other: { color: '#7b8a85' },
-  Salary: { color: '#2f9e6b' },
-  Freelance: { color: '#3fb596' },
-  Gift: { color: '#d9667a' },
+  Food: { icon: 'food', color: '#e08a3c' },
+  Transport: { icon: 'bus', color: '#3b82b6' },
+  Rent: { icon: 'home', color: '#6d7fcc' },
+  Shopping: { icon: 'bag', color: '#c4638f' },
+  Bills: { icon: 'bolt', color: '#c9a227' },
+  Health: { icon: 'heart', color: '#2fa58a' },
+  Entertainment: { icon: 'film', color: '#9a78c9' },
+  Other: { icon: 'dots', color: '#7b8a85' },
+  Salary: { icon: 'briefcase', color: '#2f9e6b' },
+  Freelance: { icon: 'laptop', color: '#3fb596' },
+  Gift: { icon: 'gift', color: '#d9667a' },
 };
 export const categoryMeta = (c) => CATEGORY_META[c] || CATEGORY_META.Other;
 
 export const PAYMENT_METHODS = [
-  { value: 'cash', label: 'Cash' },
-  { value: 'card', label: 'Card' },
-  { value: 'upi', label: 'UPI' },
+  { value: 'cash', label: 'Cash', icon: 'cash' },
+  { value: 'card', label: 'Card', icon: 'card' },
+  { value: 'upi', label: 'UPI', icon: 'phone' },
 ];
 
 const money = new Intl.NumberFormat('en-IN', {

@@ -28,6 +28,7 @@ export default function BudgetCard({ expense, budget, onSave }) {
       {editing ? (
         <form className="form" onSubmit={submit}>
           <input
+            className="text-input"
             type="number"
             min="0"
             placeholder="Monthly limit, e.g. 20000"
@@ -36,7 +37,7 @@ export default function BudgetCard({ expense, budget, onSave }) {
             value={value}
             onChange={(e) => setValue(e.target.value)}
           />
-          {error && <p className="error">{error}</p>}
+          {error && <div className="banner error" role="alert">{error}</div>}
           <div className="form-actions">
             <button type="button" className="btn" onClick={() => setEditing(false)}>Cancel</button>
             <button type="submit" className="btn primary">Save</button>
@@ -46,10 +47,12 @@ export default function BudgetCard({ expense, budget, onSave }) {
         <>
           {budget > 0 && (
             <>
-              <strong className={state === 'over' ? 'expense' : ''}>
+              <strong className={state === 'over' ? 'bad' : ''}>
                 {left >= 0 ? `${formatMoney(left)} left` : `Over by ${formatMoney(-left)}`}
               </strong>
-              <progress value={Math.min(ratio, 1)} max="1" aria-label="Budget used" />
+              <div className="meter" role="img" aria-label={`${Math.round(ratio * 100)}% of budget used`}>
+                <div className="meter-fill" style={{ width: `${Math.min(100, ratio * 100)}%` }} />
+              </div>
               <span className="muted">
                 {formatMoney(expense)} of {formatMoney(budget)} spent
               </span>

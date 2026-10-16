@@ -2,19 +2,25 @@ import { ArcElement, BarElement, CategoryScale, Chart as ChartJS, LinearScale, T
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { categoryMeta, formatCompact, formatMoney } from '../constants';
 import EmptyState from './EmptyState';
+import Icon from './Icon';
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip);
 
 const money = (ctx) => ` ${formatMoney(ctx.parsed.y ?? ctx.parsed)}`;
 
-export function CategoryDonut({ summary }) {
+export function CategoryDonut({ summary, dark }) {
   const { expense, byCategory } = summary;
+  const surface = dark ? '#121c19' : '#ffffff';
+
   const data = {
     labels: byCategory.map((c) => c._id),
     datasets: [
       {
         data: byCategory.map((c) => c.total),
         backgroundColor: byCategory.map((c) => categoryMeta(c._id).color),
+        borderColor: surface,
+        borderWidth: 3,
+        hoverOffset: 6,
       },
     ],
   };
@@ -23,7 +29,7 @@ export function CategoryDonut({ summary }) {
     <section className="panel">
       <h2>Where it went</h2>
       {byCategory.length === 0 ? (
-        <EmptyState text="No expenses this month." />
+        <EmptyState small icon="chart" text="No expenses this month." />
       ) : (
         <>
           <div className="donut">
@@ -31,7 +37,7 @@ export function CategoryDonut({ summary }) {
               data={data}
               options={{
                 maintainAspectRatio: false,
-                cutout: '65%',
+                cutout: '74%',
                 plugins: { legend: { display: false }, tooltip: { callbacks: { label: money } } },
               }}
             />
@@ -46,7 +52,9 @@ export function CategoryDonut({ summary }) {
               const pct = expense ? (c.total / expense) * 100 : 0;
               return (
                 <li key={c._id}>
-                  <span className="dot" style={{ background: meta.color }} />
+                  <span className="legend-icon" style={{ background: `${meta.color}26`, color: meta.color }}>
+                    <Icon name={meta.icon} size={16} />
+                  </span>
                   <div className="legend-body">
                     <div className="legend-row">
                       <span>{c._id}</span>
@@ -66,15 +74,18 @@ export function CategoryDonut({ summary }) {
   );
 }
 
-export function IncomeExpenseBar({ summary }) {
+export function IncomeExpenseBar({ summary, dark }) {
   const { income, expense } = summary;
+  const textColor = dark ? '#88a198' : '#5d716a';
+  const gridColor = dark ? '#23332d' : '#dce7e2';
 
   const data = {
     labels: ['Income', 'Expense'],
     datasets: [
       {
         data: [income, expense],
-        backgroundColor: ['#2e7d32', '#c62828'],
+        backgroundColor: [dark ? '#6ee7a8' : '#17834f', dark ? '#ff8f8f' : '#d2433b'],
+        borderRadius: 10,
         maxBarThickness: 84,
       },
     ],
@@ -84,7 +95,7 @@ export function IncomeExpenseBar({ summary }) {
     <section className="panel">
       <h2>Income vs expense</h2>
       {income === 0 && expense === 0 ? (
-        <EmptyState text="No data this month." />
+        <EmptyState small icon="chart" text="No data this month." />
       ) : (
         <div className="bar-box">
           <Bar
@@ -93,10 +104,12 @@ export function IncomeExpenseBar({ summary }) {
               maintainAspectRatio: false,
               plugins: { legend: { display: false }, tooltip: { callbacks: { label: money } } },
               scales: {
-                x: { grid: { display: false } },
+                x: { grid: { display: false }, border: { display: false }, ticks: { color: textColor } },
                 y: {
                   beginAtZero: true,
-                  ticks: { callback: (v) => formatCompact(v), maxTicksLimit: 5 },
+                  border: { display: false },
+                  grid: { color: gridColor },
+                  ticks: { color: textColor, callback: (v) => formatCompact(v), maxTicksLimit: 5 },
                 },
               },
             }}
