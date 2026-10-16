@@ -3,15 +3,15 @@ import { CategoryDonut, IncomeExpenseBar } from '../components/Charts';
 import SummaryCards from '../components/SummaryCards';
 import TransactionList from '../components/TransactionList';
 
-export default function Dashboard({ summary, transactions, loading, budget, dark, actions }) {
+export default function Dashboard({ summary, transactions, loading, budget, actions }) {
   return (
     <>
-      <SummaryCards summary={summary} onAdd={actions.add} />
+      <SummaryCards summary={summary} />
       <div className="grid">
         <div className="stack">
           <BudgetCard expense={summary.expense} budget={budget} onSave={actions.saveBudget} />
-          <CategoryDonut summary={summary} dark={dark} />
-          <IncomeExpenseBar summary={summary} dark={dark} />
+          <CategoryDonut summary={summary} />
+          <IncomeExpenseBar summary={summary} />
         </div>
         <TransactionList
           compact

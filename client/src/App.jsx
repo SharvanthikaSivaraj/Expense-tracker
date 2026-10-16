@@ -9,7 +9,6 @@ import {
   updateTransaction,
 } from './api';
 import { useAuth } from './auth';
-import { useTheme } from './theme';
 import { currentMonth, formatDate, formatMoney, greeting, monthLabel, todayISO } from './constants';
 import Drawer from './components/Drawer';
 import MonthPicker from './components/MonthPicker';
@@ -22,7 +21,6 @@ const EMPTY_SUMMARY = { income: 0, expense: 0, balance: 0, byCategory: [] };
 
 export default function App() {
   const { user, logout } = useAuth();
-  const { dark, toggle: toggleTheme } = useTheme();
   const [view, setView] = useState('dashboard');
   const [month, setMonth] = useState(currentMonth);
   const [transactions, setTransactions] = useState([]);
@@ -85,12 +83,11 @@ export default function App() {
   };
 
   const defaultDate = month === currentMonth() ? todayISO() : `${month}-01`;
-  const title =
-    view === 'dashboard' ? `${greeting()}, ${user.name.split(' ')[0]}` : 'Transactions';
+  const title = view === 'dashboard' ? `${greeting()}, ${user.name.split(' ')[0]}` : 'Transactions';
 
   return (
     <div className="shell">
-      <Nav view={view} onView={setView} onAdd={() => actions.add()} dark={dark} onToggleTheme={toggleTheme} user={user} onLogout={logout} />
+      <Nav view={view} onView={setView} onAdd={() => actions.add()} user={user} onLogout={logout} />
 
       <div className="content">
         <header className="topbar">
@@ -110,7 +107,7 @@ export default function App() {
 
         <div className="view" key={view}>
           {view === 'dashboard' && (
-            <Dashboard summary={summary} transactions={transactions} loading={loading} budget={budget} dark={dark} actions={actions} />
+            <Dashboard summary={summary} transactions={transactions} loading={loading} budget={budget} actions={actions} />
           )}
           {view === 'transactions' && <Transactions transactions={transactions} loading={loading} actions={actions} />}
         </div>
