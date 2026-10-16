@@ -1,60 +1,75 @@
+import { useState } from 'react';
 import { formatMoney } from '../constants';
-import EmptyState from './EmptyState';
 
-const R = 44;
-const C = 2 * Math.PI * R;
+export default function BudgetCard({ expense, budget, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState('');
+  const [error, setError] = useState('');
 
-export default function BudgetCard({ expense, budget, onSetup }) {
-  if (!budget) {
-    return (
-      <section className="panel budget">
-        <h2>Monthly budget</h2>
-        <EmptyState
-          small
-          icon="target"
-          text="Set a monthly limit and track how much you have left."
-          action={<button type="button" className="btn primary" onClick={onSetup}>Set budget</button>}
-        />
-      </section>
-    );
+  async function submit(e) {
+    e.preventDefault();
+    try {
+      await onSave(Number(value) || 0);
+      setEditing(false);
+      setError('');
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
-  const ratio = expense / budget;
-  const pct = Math.round(ratio * 100);
+  const ratio = budget ? expense / budget : 0;
   const state = ratio > 1 ? 'over' : ratio >= 0.75 ? 'warn' : 'ok';
   const left = budget - expense;
 
   return (
     <section className="panel budget">
       <h2>Monthly budget</h2>
-      <div className="budget-body">
-        <div className={`ring ${state}`}>
-          <svg viewBox="0 0 100 100" width="96" height="96" role="img" aria-label={`${pct}% of budget used`}>
-            <circle cx="50" cy="50" r={R} className="ring-track" />
-            <circle
-              cx="50"
-              cy="50"
-              r={R}
-              className="ring-fill"
-              strokeDasharray={C}
-              strokeDashoffset={C * (1 - Math.min(1, ratio))}
-              transform="rotate(-90 50 50)"
-            />
-          </svg>
-          <span className="ring-text">{pct}%</span>
-        </div>
-        <div className="budget-info">
-          <strong className={state === 'over' ? 'bad' : ''}>
-            {left >= 0 ? `${formatMoney(left)} left` : `Over by ${formatMoney(-left)}`}
-          </strong>
-          <span className="muted">
-            {formatMoney(expense)} of {formatMoney(budget)}
-          </span>
-          <span className={`budget-note ${state}`}>
-            {state === 'over' ? 'Budget exceeded' : state === 'warn' ? 'Close to the limit' : 'On track'}
-          </span>
-        </div>
-      </div>
+
+      {editing ? (
+        <form className="form" onSubmit={submit}>
+          <input
+            className="text-input"
+            type="number"
+            min="0"
+            placeholder="Monthly limit, e.g. 20000"
+            aria-label="Monthly budget"
+            autoFocus
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+          />
+          {error && <div className="banner error" role="alert">{error}</div>}
+          <div className="form-actions">
+            <button type="button" className="btn" onClick={() => setEditing(false)}>Cancel</button>
+            <button type="submit" className="btn primary">Save</button>
+          </div>
+        </form>
+      ) : (
+        <>
+          {budget > 0 && (
+            <>
+              <strong className={state === 'over' ? 'bad' : ''}>
+                {left >= 0 ? `${formatMoney(left)} left` : `Over by ${formatMoney(-left)}`}
+              </strong>
+              <div className="meter" role="img" aria-label={`${Math.round(ratio * 100)}% of budget used`}>
+                <div className="meter-fill" style={{ width: `${Math.min(100, ratio * 100)}%` }} />
+              </div>
+              <span className="muted">
+                {formatMoney(expense)} of {formatMoney(budget)} spent
+              </span>
+            </>
+          )}
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setValue(budget ? String(budget) : '');
+              setEditing(true);
+            }}
+          >
+            {budget ? 'Change budget' : 'Set budget'}
+          </button>
+        </>
+      )}
     </section>
   );
 }

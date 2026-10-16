@@ -3,10 +3,6 @@ import Icon from './Icon';
 const ITEMS = [
   { id: 'dashboard', label: 'Home', icon: 'home' },
   { id: 'transactions', label: 'Transactions', icon: 'list' },
-  { id: 'accounts', label: 'Accounts', icon: 'wallet' },
-  { id: 'plan', label: 'Plan', icon: 'target' },
-  { id: 'insights', label: 'Insights', icon: 'chart' },
-  { id: 'settings', label: 'Settings', icon: 'sliders' },
 ];
 
 export default function Nav({ view, onView, onAdd, dark, onToggleTheme, user, onLogout }) {
@@ -18,7 +14,7 @@ export default function Nav({ view, onView, onAdd, dark, onToggleTheme, user, on
     .join('');
 
   const item = (it) => (
-    <li key={it.id} className={it.id === 'settings' ? 'nav-settings' : undefined}>
+    <li key={it.id}>
       <button
         type="button"
         className={view === it.id ? 'on' : ''}
@@ -43,13 +39,7 @@ export default function Nav({ view, onView, onAdd, dark, onToggleTheme, user, on
       </button>
 
       <ul className="nav-list">
-        {ITEMS.slice(0, 2).map(item)}
-        <li className="nav-fab-slot">
-          <button type="button" className="nav-fab" aria-label="Add transaction" onClick={onAdd}>
-            <Icon name="plus" size={26} />
-          </button>
-        </li>
-        {ITEMS.slice(2).map(item)}
+        {ITEMS.map(item)}
       </ul>
 
       <button type="button" className="nav-theme" onClick={onToggleTheme}>

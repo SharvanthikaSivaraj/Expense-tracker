@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { accountTypeMeta, categoryMeta, CATEGORIES, PAYMENT_METHODS, toInputDate } from '../constants';
-import { autoAccount, defaultMethod, eligibleFor, NO_ACCOUNT } from '../paymentRules';
+import { categoryMeta, CATEGORIES, PAYMENT_METHODS, toInputDate } from '../constants';
 import Icon from './Icon';
 
-function initialValues(transaction, defaultDate, defaultType, accounts) {
+function initialValues(transaction, defaultDate, defaultType) {
   if (transaction) {
     const known = CATEGORIES[transaction.type].includes(transaction.category);
     return {
@@ -13,24 +12,21 @@ function initialValues(transaction, defaultDate, defaultType, accounts) {
       customCategory: known ? '' : transaction.category,
       date: toInputDate(transaction.date),
       paymentMethod: transaction.paymentMethod,
-      account: autoAccount(accounts, transaction.paymentMethod, transaction.account || ''),
       note: transaction.note || '',
     };
   }
-  const method = defaultMethod(accounts);
   return {
     amount: '',
     type: defaultType,
     category: '',
     customCategory: '',
     date: defaultDate,
-    paymentMethod: method,
-    account: autoAccount(accounts, method),
+    paymentMethod: 'cash',
     note: '',
   };
 }
 
-function validate(v, eligible) {
+function validate(v) {
   const errors = {};
   const amount = Number(v.amount);
   if (v.amount === '' || Number.isNaN(amount) || amount <= 0) errors.amount = 'Enter an amount greater than 0';
@@ -38,23 +34,17 @@ function validate(v, eligible) {
   if (v.customCategory.length > 30) errors.customCategory = 'Keep it to 30 characters';
   if (!v.date) errors.date = 'Pick a date';
   if (v.note.length > 200) errors.note = 'Note must be 200 characters or fewer';
-  if (v.paymentMethod !== 'cash') {
-    if (eligible.length === 0) errors.account = (NO_ACCOUNT[v.paymentMethod] || NO_ACCOUNT.upi).text;
-    else if (!v.account) errors.account = 'Choose which account this was paid from';
-  }
   return errors;
 }
 
 export default function TransactionForm({
   transaction,
-  accounts = [],
   defaultDate,
   defaultType,
-  onAddAccount,
   onSave,
   onCancel,
 }) {
-  const [values, setValues] = useState(() => initialValues(transaction, defaultDate, defaultType, accounts));
+  const [values, setValues] = useState(() => initialValues(transaction, defaultDate, defaultType));
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -76,19 +66,11 @@ export default function TransactionForm({
       customCategory: CATEGORIES[type].includes(v.category) ? v.customCategory : '',
     }));
 
-  const selectMethod = (method) =>
-    setValues((v) => ({ ...v, paymentMethod: method, account: autoAccount(accounts, method) }));
-
   const method = values.paymentMethod;
-  const needsAccount = method !== 'cash';
-  const eligible = eligibleFor(accounts, method, values.account);
-  const blocked = needsAccount && eligible.length === 0;
-  // an old transaction may carry the retired "bank" method, keep it visible while editing
-  const methods = method === 'bank' ? [...PAYMENT_METHODS, { value: 'bank', label: 'Bank', icon: 'bank' }] : PAYMENT_METHODS;
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const found = validate(values, eligible);
+    const found = validate(values);
     setErrors(found);
     setServerError('');
     if (Object.keys(found).length) return;
@@ -104,7 +86,6 @@ export default function TransactionForm({
         category,
         date: values.date,
         paymentMethod: values.paymentMethod,
-        account: values.account || null,
         note: values.note.trim(),
       });
     } catch (err) {
@@ -192,13 +173,13 @@ export default function TransactionForm({
       <div className="field">
         <span className="field-label">Paid with</span>
         <div className="chips" role="group" aria-label="Payment method">
-          {methods.map((m) => (
+          {PAYMENT_METHODS.map((m) => (
             <button
               key={m.value}
               type="button"
               className={`chip ${method === m.value ? 'on' : ''}`}
               aria-pressed={method === m.value}
-              onClick={() => selectMethod(m.value)}
+              onClick={() => pick('paymentMethod', m.value)}
             >
               <Icon name={m.icon} size={16} />
               {m.label}
@@ -206,63 +187,6 @@ export default function TransactionForm({
           ))}
         </div>
       </div>
-
-      {blocked && (
-        <div className="notice warn" role="alert">
-          <Icon name="alert" size={20} />
-          <div>
-            <strong>{(NO_ACCOUNT[method] || NO_ACCOUNT.upi).title}</strong>
-            <p>{(NO_ACCOUNT[method] || NO_ACCOUNT.upi).text}</p>
-          </div>
-          {onAddAccount && (
-            <button type="button" className="btn small" onClick={onAddAccount}>
-              Add account
-            </button>
-          )}
-        </div>
-      )}
-
-      {eligible.length === 1 && (
-        <div className="field">
-          <span className="field-label">Account</span>
-          <div className="auto-account">
-            <Icon name={accountTypeMeta(eligible[0].type).icon} size={18} />
-            <strong>{eligible[0].name}</strong>
-            <span className="muted">selected automatically</span>
-          </div>
-        </div>
-      )}
-
-      {eligible.length > 1 && (
-        <div className="field">
-          <span className="field-label">Account</span>
-          <div className="chips" role="group" aria-label="Account">
-            {!needsAccount && (
-              <button
-                type="button"
-                className={`chip ${values.account === '' ? 'on' : ''}`}
-                aria-pressed={values.account === ''}
-                onClick={() => pick('account', '')}
-              >
-                None
-              </button>
-            )}
-            {eligible.map((a) => (
-              <button
-                key={a._id}
-                type="button"
-                className={`chip ${values.account === a._id ? 'on' : ''}`}
-                aria-pressed={values.account === a._id}
-                onClick={() => pick('account', a._id)}
-              >
-                <Icon name={accountTypeMeta(a.type).icon} size={16} />
-                {a.name}
-              </button>
-            ))}
-          </div>
-          {errors.account && <span className="field-error">{errors.account}</span>}
-        </div>
-      )}
 
       <div className="field">
         <label htmlFor="note">
@@ -279,8 +203,7 @@ export default function TransactionForm({
         <button
           type="submit"
           className={`btn primary ${values.type}`}
-          disabled={saving || blocked}
-          title={blocked ? 'Add an account to continue' : undefined}
+          disabled={saving}
         >
           {saving ? 'Saving...' : editing ? 'Save changes' : `Add ${values.type}`}
         </button>

@@ -18,7 +18,6 @@ const transactionSchema = new mongoose.Schema(
       required: [true, 'Type is required'],
       enum: { values: ['income', 'expense'], message: 'Type must be income or expense' },
     },
-    account: { type: mongoose.Schema.Types.ObjectId, ref: 'Account', default: null },
     category: {
       type: String,
       required: [true, 'Category is required'],

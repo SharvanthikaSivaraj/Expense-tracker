@@ -1,34 +1,20 @@
-# Database Schema
+# Database schema
 
-Collection: `transactions`
-
-| Field | Type | Rules |
+## User
+| Field | Type | Notes |
 |---|---|---|
-| amount | Number | required, min 0.01 |
-| type | String | required, enum: income, expense |
-| category | String | required, trimmed |
-| date | Date | required, stored in UTC |
-| paymentMethod | String | required, enum: cash, card, upi, bank |
-| note | String | optional, max 200 chars |
-| createdAt | Date | auto (timestamps) |
-| updatedAt | Date | auto (timestamps) |
+| name | String | 2 to 50 characters |
+| email | String | unique, lowercase |
+| passwordHash | String | bcrypt hash, never sent to the client |
+| budget | Number | monthly spending limit, 0 = not set |
 
-## Example document
-```json
-{
-  "_id": "665f1c2e8a1b2c3d4e5f6a7b",
-  "amount": 450,
-  "type": "expense",
-  "category": "Food",
-  "date": "2026-10-12T00:00:00.000Z",
-  "paymentMethod": "upi",
-  "note": "Lunch with friends",
-  "createdAt": "2026-10-12T09:15:00.000Z",
-  "updatedAt": "2026-10-12T09:15:00.000Z"
-}
-```
-
-## Design decisions
-- Amounts are always positive; `type` decides the sign in calculations.
-- Dates are stored in UTC to avoid timezone bugs in month filtering.
-- Monthly totals are computed with MongoDB aggregation, not stored.
+## Transaction
+| Field | Type | Notes |
+|---|---|---|
+| user | ObjectId | owner; every query filters on it |
+| amount | Number | always positive, at least 0.01 |
+| type | String | `income` or `expense` |
+| category | String | e.g. Food, Rent, Salary |
+| date | Date | stored in UTC |
+| paymentMethod | String | `cash`, `card`, `upi` or `bank` |
+| note | String | optional, up to 200 characters |

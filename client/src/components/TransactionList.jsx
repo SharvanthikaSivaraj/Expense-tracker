@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ALL_PAYMENT_METHODS, categoryMeta, dayLabel, formatMoney, toInputDate } from '../constants';
-import { downloadCsv, transactionsToCsv } from '../csv';
+import { PAYMENT_METHODS, categoryMeta, dayLabel, formatMoney, toInputDate } from '../constants';
 import EmptyState from './EmptyState';
 import Icon from './Icon';
 
@@ -10,14 +9,7 @@ const FILTERS = [
   { id: 'income', label: 'Income' },
 ];
 
-const SORTS = [
-  { id: 'newest', label: 'Newest first' },
-  { id: 'oldest', label: 'Oldest first' },
-  { id: 'high', label: 'Highest amount' },
-  { id: 'low', label: 'Lowest amount' },
-];
-
-const methodLabel = (v) => ALL_PAYMENT_METHODS.find((m) => m.value === v)?.label || v;
+const methodLabel = (v) => PAYMENT_METHODS.find((m) => m.value === v)?.label || v;
 
 function groupByDay(items) {
   const byDay = new Map();
@@ -33,7 +25,7 @@ function groupByDay(items) {
   }));
 }
 
-function Row({ t, accountName, onEdit, onDelete }) {
+function Row({ t, onEdit, onDelete }) {
   const meta = categoryMeta(t.category);
   return (
     <li className="row">
@@ -43,7 +35,7 @@ function Row({ t, accountName, onEdit, onDelete }) {
       <div className="row-main">
         <strong>{t.category}</strong>
         <span className="row-sub">
-          <span className="tag">{accountName || methodLabel(t.paymentMethod)}</span>
+          <span className="tag">{methodLabel(t.paymentMethod)}</span>
           {t.note && <span className="note">{t.note}</span>}
         </span>
       </div>
@@ -65,7 +57,6 @@ function Row({ t, accountName, onEdit, onDelete }) {
 
 export default function TransactionList({
   transactions,
-  accounts = [],
   loading,
   onEdit,
   onDelete,
@@ -73,49 +64,27 @@ export default function TransactionList({
   compact = false,
   limit = 6,
   onSeeAll,
-  exportName = 'transactions',
 }) {
   const [filter, setFilter] = useState('all');
   const [category, setCategory] = useState('all');
-  const [sort, setSort] = useState('newest');
-  const [accountFilter, setAccountFilter] = useState('all');
-  const accountNames = useMemo(() => Object.fromEntries(accounts.map((a) => [a._id, a.name])), [accounts]);
   const [query, setQuery] = useState('');
 
   const categories = useMemo(() => [...new Set(transactions.map((t) => t.category))].sort(), [transactions]);
 
-  const { groups, flat } = useMemo(() => {
-    if (compact) return { groups: groupByDay(transactions.slice(0, limit)), flat: null };
-
-    const q = query.trim().toLowerCase();
-    let list = transactions.filter(
-      (t) =>
-        (filter === 'all' || t.type === filter) &&
-        (category === 'all' || t.category === category) &&
-        (accountFilter === 'all' || (accountFilter === 'none' ? !t.account : t.account === accountFilter)) &&
-        (!q || [t.category, t.note || '', t.paymentMethod].some((s) => s.toLowerCase().includes(q)))
-    );
-
-    if (sort === 'oldest') list = [...list].sort((a, b) => new Date(a.date) - new Date(b.date));
-    if (sort === 'high') return { groups: null, flat: [...list].sort((a, b) => b.amount - a.amount) };
-    if (sort === 'low') return { groups: null, flat: [...list].sort((a, b) => a.amount - b.amount) };
-    return { groups: groupByDay(list), flat: null };
-  }, [transactions, compact, limit, filter, category, accountFilter, sort, query]);
-
-  const visible = flat || groups.flatMap((g) => g.items);
-  const shown = visible.length;
-
-  const exportCsv = () => downloadCsv(`${exportName}.csv`, transactionsToCsv(visible, accountNames));
+  const q = query.trim().toLowerCase();
+  const list = (compact ? transactions.slice(0, limit) : transactions).filter(
+    (t) =>
+      (filter === 'all' || t.type === filter) &&
+      (category === 'all' || t.category === category) &&
+      (!q || [t.category, t.note || '', t.paymentMethod].some((s) => s.toLowerCase().includes(q)))
+  );
+  const groups = groupByDay(list);
+  const shown = list.length;
 
   return (
     <section className="panel list-panel">
       <div className="list-head">
         <h2>{compact ? 'Recent transactions' : `Transactions${transactions.length ? ` (${shown})` : ''}`}</h2>
-        {!compact && shown > 0 && (
-          <button type="button" className="btn small export-btn" onClick={exportCsv}>
-            <Icon name="download" size={16} /> Export CSV
-          </button>
-        )}
         {compact && transactions.length > 0 && (
           <button type="button" className="link-btn" onClick={onSeeAll}>
             See all <Icon name="chevR" size={16} />
@@ -153,20 +122,6 @@ export default function TransactionList({
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
-          {accounts.length > 0 && (
-            <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)} aria-label="Filter by account">
-              <option value="all">All accounts</option>
-              <option value="none">No account</option>
-              {accounts.map((a) => (
-                <option key={a._id} value={a._id}>{a.name}</option>
-              ))}
-            </select>
-          )}
-          <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort">
-            {SORTS.map((s) => (
-              <option key={s.id} value={s.id}>{s.label}</option>
-            ))}
-          </select>
         </div>
       )}
 
@@ -189,12 +144,6 @@ export default function TransactionList({
         />
       ) : shown === 0 ? (
         <EmptyState small icon="search" text="No transactions match your filters." />
-      ) : flat ? (
-        <ul className="flat">
-          {flat.map((t) => (
-            <Row key={t._id} t={t} accountName={accountNames[t.account]} onEdit={onEdit} onDelete={onDelete} />
-          ))}
-        </ul>
       ) : (
         groups.map((g) => (
           <div className="day" key={g.day}>
@@ -204,7 +153,7 @@ export default function TransactionList({
             </div>
             <ul>
               {g.items.map((t) => (
-                <Row key={t._id} t={t} accountName={accountNames[t.account]} onEdit={onEdit} onDelete={onDelete} />
+                <Row key={t._id} t={t} onEdit={onEdit} onDelete={onDelete} />
               ))}
             </ul>
           </div>

@@ -1,31 +1,18 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const Account = require('../models/Account');
 const Transaction = require('../models/Transaction');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
 router.use(auth);
 
-const FIELDS = ['amount', 'type', 'category', 'date', 'paymentMethod', 'note', 'account'];
+const FIELDS = ['amount', 'type', 'category', 'date', 'paymentMethod', 'note'];
 
 // Whitelist body fields so a client can never set user, _id or timestamps
 function pick(body) {
   const out = {};
   if (body && typeof body === 'object') for (const f of FIELDS) if (body[f] !== undefined) out[f] = body[f];
   return out;
-}
-
-// Normalises body.account and checks it belongs to the caller.
-// Returns an error message, or null when fine. ''/null means "no account".
-async function checkAccount(data, userId) {
-  if (!('account' in data)) return null;
-  if (data.account === '' || data.account === null) {
-    data.account = null;
-    return null;
-  }
-  if (typeof data.account !== 'string' || !mongoose.isValidObjectId(data.account)) return 'Account not found';
-  return (await Account.exists({ _id: data.account, user: userId })) ? null : 'Account not found';
 }
 
 // "2026-10" -> [2026-10-01T00:00Z, 2026-11-01T00:00Z)
@@ -70,46 +57,8 @@ router.get('/summary', async (req, res) => {
   }
 });
 
-// All-time totals, split by whether the transaction is linked to an account.
-// The client adds the account balances to the unlinked net to get the real total balance.
-router.get('/overview', async (req, res) => {
-  try {
-    const rows = await Transaction.aggregate([
-      { $match: { user: new mongoose.Types.ObjectId(req.userId) } },
-      {
-        $group: {
-          _id: {
-            type: '$type',
-            linked: { $cond: [{ $eq: [{ $ifNull: ['$account', null] }, null] }, false, true] },
-          },
-          total: { $sum: '$amount' },
-          count: { $sum: 1 },
-          last: { $max: '$date' },
-        },
-      },
-    ]);
-
-    const out = { income: 0, expense: 0, unlinkedIncome: 0, unlinkedExpense: 0, unlinkedCount: 0, lastDate: null };
-    for (const r of rows) {
-      out[r._id.type] += r.total;
-      if (!r._id.linked) {
-        out[r._id.type === 'income' ? 'unlinkedIncome' : 'unlinkedExpense'] += r.total;
-        out.unlinkedCount += r.count;
-      }
-      if (!out.lastDate || r.last > out.lastDate) out.lastDate = r.last;
-    }
-    res.json(out);
-  } catch (err) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
 router.get('/', async (req, res) => {
   const filter = { user: req.userId };
-  if (req.query.account !== undefined) {
-    if (!mongoose.isValidObjectId(req.query.account)) return res.status(400).json({ error: 'Invalid account id' });
-    filter.account = req.query.account;
-  }
   if (req.query.month !== undefined) {
     const range = monthRange(req.query.month);
     if (!range) return res.status(400).json({ error: 'month must be in YYYY-MM format' });
@@ -127,8 +76,6 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const data = pick(req.body);
-    const accountError = await checkAccount(data, req.userId);
-    if (accountError) return res.status(400).json({ error: accountError });
     const transaction = await Transaction.create({ ...data, user: req.userId });
     res.status(201).json(transaction);
   } catch (err) {
@@ -142,8 +89,6 @@ router.put('/:id', async (req, res) => {
 
   try {
     const data = pick(req.body);
-    const accountError = await checkAccount(data, req.userId);
-    if (accountError) return res.status(400).json({ error: accountError });
     const updated = await Transaction.findOneAndUpdate(
       { _id: req.params.id, user: req.userId },
       data,

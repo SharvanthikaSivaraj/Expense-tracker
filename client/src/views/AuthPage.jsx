@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { DEMO_ACCOUNT, SHOW_DEMO, USE_MOCK, login as apiLogin, register as apiRegister } from '../api';
+import { useState } from 'react';
+import { login as apiLogin, register as apiRegister } from '../api';
 import { useAuth } from '../auth';
-import { checkEmail } from '../emailCheck';
 import Icon from '../components/Icon';
 import { useTheme } from '../theme';
-import AuthPreview from './AuthPreview';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const STRENGTH_LABELS = ['Too weak', 'Weak', 'Fair', 'Good', 'Strong'];
@@ -18,16 +16,12 @@ function strengthOf(pw) {
   return pw ? score : 0;
 }
 
-// Sign-up is strict (real ending, common typos). Log in stays lenient so older accounts can still get in.
 function validate(mode, v) {
   const errors = {};
   if (mode === 'register' && (v.name.trim().length < 2 || v.name.trim().length > 50)) {
     errors.name = 'Enter your name (2 to 50 characters)';
   }
-  if (mode === 'register') {
-    const check = checkEmail(v.email);
-    if (!check.ok) errors.email = check.error;
-  } else if (!EMAIL_RE.test(v.email.trim())) {
+  if (!EMAIL_RE.test(v.email.trim())) {
     errors.email = 'Enter a valid email address';
   }
   if (mode === 'register') {
@@ -69,40 +63,18 @@ export default function AuthPage() {
   const [remember, setRemember] = useState(true);
   const [capsLock, setCapsLock] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [shake, setShake] = useState(false);
-  const [welcome, setWelcome] = useState(null);
-  const [suggestion, setSuggestion] = useState('');
-  const timer = useRef(null);
-
-  useEffect(() => () => clearTimeout(timer.current), []);
 
   const isRegister = mode === 'register';
   const score = strengthOf(values.password);
 
   const set = (field) => (e) => {
-    if (field === 'email') setSuggestion('');
     setValues((v) => ({ ...v, [field]: e.target.value }));
     if (errors[field]) setErrors((er) => ({ ...er, [field]: undefined }));
     if (serverError) setServerError('');
   };
 
-  // On sign-up, check the address as soon as the field loses focus
-  function checkEmailOnBlur() {
-    if (!isRegister || !values.email.trim()) return;
-    const check = checkEmail(values.email);
-    setSuggestion(check.ok ? '' : check.suggestion || '');
-    setErrors((er) => ({ ...er, email: check.ok ? undefined : check.error }));
-  }
-
-  function applySuggestion() {
-    setValues((v) => ({ ...v, email: suggestion }));
-    setErrors((er) => ({ ...er, email: undefined }));
-    setSuggestion('');
-  }
-
   function switchMode(next) {
     if (next === mode) return;
-    setSuggestion('');
     setMode(next);
     setErrors({});
     setServerError('');
@@ -111,19 +83,16 @@ export default function AuthPage() {
 
   function fail(message) {
     setServerError(message);
-    setShake(true);
     setBusy(false);
   }
 
-  // Runs the request, plays the welcome animation, then hands the session to the app
+  // Runs the request, then hands the session to the app
   async function enter(request, body) {
     setBusy(true);
     try {
       const result = await request(body);
-      setWelcome(result.user.name.split(' ')[0]);
-      timer.current = setTimeout(() => authenticate(result, remember), 1100);
+      authenticate(result, remember);
     } catch (err) {
-      if (err.suggestion) setSuggestion(err.suggestion);
       fail(err.message);
     }
   }
@@ -133,11 +102,7 @@ export default function AuthPage() {
     const found = validate(mode, values);
     setErrors(found);
     setServerError('');
-    if (found.email && isRegister) setSuggestion(checkEmail(values.email).suggestion || '');
-    if (Object.keys(found).length) {
-      setShake(true);
-      return;
-    }
+    if (Object.keys(found).length) return;
     const body = { email: values.email.trim(), password: values.password };
     if (isRegister) enter(apiRegister, { ...body, name: values.name.trim() });
     else enter(apiLogin, body);
@@ -173,8 +138,6 @@ export default function AuthPage() {
               : 'Your month at a glance, right where you left it.'}
           </p>
         </div>
-
-        <AuthPreview />
       </aside>
 
       <main className="auth-panel">
@@ -188,18 +151,6 @@ export default function AuthPage() {
         </button>
 
         <div className="auth-card">
-          {welcome ? (
-            <div className="auth-success" role="status">
-              <span className="success-ring">
-                <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <path className="draw" d="M5 13l4 4L19 7" />
-                </svg>
-              </span>
-              <h2>{isRegister ? `Welcome, ${welcome}` : `Welcome back, ${welcome}`}</h2>
-              <p className="muted">Taking you to your dashboard</p>
-            </div>
-          ) : (
-            <>
               <div className="auth-tabs" data-mode={mode} role="tablist" aria-label="Log in or create an account">
                 <span className="thumb" />
                 <button type="button" role="tab" aria-selected={!isRegister} className={!isRegister ? 'on' : ''} onClick={() => switchMode('login')}>
@@ -224,9 +175,8 @@ export default function AuthPage() {
               )}
 
               <form
-                className={`form auth-form ${shake ? 'shake' : ''}`}
+                className="form auth-form"
                 onSubmit={submit}
-                onAnimationEnd={() => setShake(false)}
                 noValidate
               >
                 {isRegister && (
@@ -235,7 +185,7 @@ export default function AuthPage() {
                   </Field>
                 )}
 
-                <Field id="email" label="Email" icon="mail" error={errors.email} valid={isRegister ? checkEmail(values.email).ok : EMAIL_RE.test(values.email.trim())}>
+                <Field id="email" label="Email" icon="mail" error={errors.email} valid={EMAIL_RE.test(values.email.trim())}>
                   <input
                     id="email"
                     className="text-input"
@@ -246,15 +196,8 @@ export default function AuthPage() {
                     autoFocus
                     value={values.email}
                     onChange={set('email')}
-                    onBlur={checkEmailOnBlur}
                   />
                 </Field>
-
-                {isRegister && suggestion && (
-                  <button type="button" className="suggest-btn" onClick={applySuggestion}>
-                    Use <strong>{suggestion}</strong>
-                  </button>
-                )}
 
                 <Field id="password" label="Password" icon="lock" error={errors.password} trailing={passwordToggle}>
                   <input
@@ -334,33 +277,12 @@ export default function AuthPage() {
                 </button>
               </form>
 
-              {SHOW_DEMO && !isRegister && (
-                <div className="demo-box">
-                  <div>
-                    <strong>Demo mode</strong>
-                    <p className="muted">
-                      {USE_MOCK ? 'Data stays in this browser. ' : ''}Try the sample account.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={busy}
-                    onClick={() => enter(apiLogin, { email: DEMO_ACCOUNT.email, password: DEMO_ACCOUNT.password })}
-                  >
-                    Use demo
-                  </button>
-                </div>
-              )}
-
               <p className="auth-switch muted">
                 {isRegister ? 'Already have an account?' : 'New here?'}{' '}
                 <button type="button" className="link-btn" onClick={() => switchMode(isRegister ? 'login' : 'register')}>
                   {isRegister ? 'Log in' : 'Create an account'}
                 </button>
               </p>
-            </>
-          )}
         </div>
       </main>
     </div>

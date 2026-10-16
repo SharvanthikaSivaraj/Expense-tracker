@@ -4,24 +4,16 @@ A MERN app to record daily income and expenses, sort them into categories, and s
 
 **Live app:** https://expense-tracker-three-sigma-94.vercel.app &nbsp;|&nbsp; **API:** https://expense-tracker-api-zgkq.onrender.com/api/health
 
-Try it with the demo account: `demo@expensetracker.dev` / `Demo1234` (use the "Use demo" button on the login page).
-
 > The backend runs on a free Render plan, so the first request after a period of inactivity can take about 50 seconds.
 
-![Dashboard](docs/screenshots/dashboard.png)
-
 ## Features
-- Accounts with login: register, log in, edit profile, change password, delete account (each user sees only their own data)
-- Accounts and cards (bank, cash, wallet, credit or debit card) with computed balances and credit utilisation; link transactions to an account
-- Plan page: overall and per-category budgets with progress, savings goals with contributions, and bill reminders (mark paid records the expense and rolls monthly bills forward)
-- Export the visible transactions to CSV (spreadsheet-safe)
-- Add, edit and delete transactions (amount, income or expense, category, date, payment method, optional note)
-- View transactions for any month, newest first
-- Monthly summary: total income, total expense and balance, computed with MongoDB aggregation
+- Register and log in (bcrypt password hashing, JWT sessions); each user sees only their own data
+- Add, edit and delete transactions (amount, income or expense, category, date, payment method, note)
+- View transactions for any month, with search and filters
+- Monthly summary (income, expense, balance) computed with MongoDB aggregation
 - Doughnut chart of expense by category, and a bar chart of income vs expense
-- Client side and server side validation, with a loading spinner, error banner and empty states
-- Light and dark themes, search, filters and sorting, monthly budget with progress ring, insights page
-- Responsive layout for mobile, tablet and desktop
+- One monthly budget with a progress bar
+- Light and dark themes, responsive layout
 
 ## Tech stack
 | Layer | Technology |
@@ -42,7 +34,7 @@ React (browser)  --Axios/JSON-->  Express API  --Mongoose-->  MongoDB Atlas
 ```
 Expense_tracker/
 ├── docs/        features, schema and API documentation
-├── server/      Express API (models, routes, seed script)
+├── server/      Express API (models, routes, middleware)
 └── client/      React app (api.js, App.jsx, components)
 ```
 
@@ -66,15 +58,13 @@ npm run dev              # http://localhost:5001
 | `JWT_SECRET` | Long random string used to sign login tokens (`openssl rand -hex 48`) |
 | `JWT_EXPIRES_IN` | Token lifetime, `7d` by default |
 
-Optional: create a demo user with sample transactions using `npm run seed` (login `demo@expensetracker.dev` / `Demo1234`). Add `--reset` to clear that user's data first, or `--email you@x.com --claim` to attach to your own account.
-
 ### 2. Frontend
 ```bash
 cd client
 npm install
 npm run dev              # http://localhost:5173
 ```
-The client talks to the Express API and MongoDB. Set `VITE_API_URL` if the API is not at `http://localhost:5001/api`, and `VITE_DEMO_LOGIN=true` to show a "Use demo account" button (run `npm run seed` in `server/` first). For an offline demo that needs no backend, set `VITE_USE_MOCK=true`; data then lives in the browser's storage. See `client/.env.example`.
+The client talks to the Express API. Set `VITE_API_URL` if the API is not at `http://localhost:5001/api` (see `client/.env.example`).
 
 ## API
 Base URL: `/api`. All errors return `{ "error": "message" }`. Transaction endpoints require `Authorization: Bearer <token>`.
@@ -84,19 +74,7 @@ Base URL: `/api`. All errors return `{ "error": "message" }`. Transaction endpoi
 | POST | `/auth/register` | Create account, returns token and user | 201 | 400, 409 |
 | POST | `/auth/login` | Log in, returns token and user | 200 | 400, 401 |
 | GET | `/auth/me` | Current user | 200 | 401 |
-| PUT | `/auth/me` | Update name | 200 | 400, 401 |
-| PUT | `/auth/me/password` | Change password | 200 | 400, 401 |
-| DELETE | `/auth/me` | Delete account and its data | 200 | 400, 401 |
-| GET | `/accounts` | List accounts with computed balances | 200 | 401 |
-| POST | `/accounts` | Create account or card (last 4 digits only) | 201 | 400, 409 |
-| PUT | `/accounts/:id` | Update account | 200 | 400, 404, 409 |
-| DELETE | `/accounts/:id` | Delete account, keep its transactions | 200 | 400, 404 |
-| GET, POST, PUT, DELETE | `/budgets` | Overall and per-category monthly budgets | 200/201 | 400, 404, 409 |
-| GET, POST, PUT, DELETE | `/goals` | Savings goals; `POST /goals/:id/contribute` adds or withdraws | 200/201 | 400, 404 |
-| GET, POST, PUT, DELETE | `/reminders` | Bills; `POST /reminders/:id/pay` records the expense | 200/201 | 400, 404 |
-
-| Method | Endpoint | Purpose | Success | Errors |
-|---|---|---|---|---|
+| GET, PUT | `/budget` | Read or set the monthly budget | 200 | 400, 401 |
 | GET | `/transactions?month=2026-10` | List for a month, newest first | 200 | 400, 500 |
 | POST | `/transactions` | Create | 201 | 400 |
 | PUT | `/transactions/:id` | Update | 200 | 400, 404 |
@@ -116,11 +94,9 @@ Full request and response examples are in [docs/api.md](docs/api.md).
 
 **Frontend on Vercel**
 1. Import the repo with root directory `client` (framework: Vite).
-2. Environment variable: `VITE_API_URL=https://<service>.onrender.com/api` (optionally `VITE_DEMO_LOGIN=true` after running the seed against the production database).
+2. Environment variable: `VITE_API_URL=https://<service>.onrender.com/api`.
 3. Redeploy after changing variables (they are baked in at build time).
 4. Put the Vercel URL into `CLIENT_URL` on Render so CORS only allows your site.
-
-Set `VITE_USE_MOCK=true` instead to deploy a backend-free demo that keeps data in each visitor's browser.
 
 ## Design decisions
 - **Amounts are always positive.** `type` decides whether it adds to or subtracts from the balance.

@@ -1,38 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  createAccount,
   createTransaction,
-  deleteAccount,
   deleteTransaction,
-  getAccounts,
-  getBudgets,
-  getGoals,
-  getOverview,
-  getReminders,
+  getBudget,
   getSummary,
   getTransactions,
-  payReminder,
-  updateAccount,
+  setBudget as saveBudget,
   updateTransaction,
 } from './api';
 import { useAuth } from './auth';
 import { useTheme } from './theme';
-import { currentMonth, formatDate, formatMoney, greeting, monthLabel, shiftMonth, todayISO } from './constants';
-import AccountForm from './components/AccountForm';
+import { currentMonth, formatDate, formatMoney, greeting, monthLabel, todayISO } from './constants';
 import Drawer from './components/Drawer';
 import MonthPicker from './components/MonthPicker';
 import Nav from './components/Nav';
 import TransactionForm from './components/TransactionForm';
-import Icon from './components/Icon';
-import Accounts from './views/Accounts';
 import Dashboard from './views/Dashboard';
-import Insights from './views/Insights';
-import Plan from './views/Plan';
-import Settings from './views/Settings';
 import Transactions from './views/Transactions';
 
 const EMPTY_SUMMARY = { income: 0, expense: 0, balance: 0, byCategory: [] };
-const EMPTY_OVERVIEW = { income: 0, expense: 0, unlinkedIncome: 0, unlinkedExpense: 0, unlinkedCount: 0, lastDate: null };
 
 export default function App() {
   const { user, logout } = useAuth();
@@ -41,54 +27,24 @@ export default function App() {
   const [month, setMonth] = useState(currentMonth);
   const [transactions, setTransactions] = useState([]);
   const [summary, setSummary] = useState(EMPTY_SUMMARY);
-  const [prevSummary, setPrevSummary] = useState(null);
-  const [accounts, setAccounts] = useState([]);
-  const [overview, setOverview] = useState(EMPTY_OVERVIEW);
-  const [budgets, setBudgets] = useState([]);
-  const [goals, setGoals] = useState([]);
-  const [reminders, setReminders] = useState([]);
-  const [planTab, setPlanTab] = useState('budgets');
+  const [budget, setBudget] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [drawer, setDrawer] = useState(null); // null | { kind: 'transaction', transaction, type? } | { kind: 'account', account }
-  const [toast, setToast] = useState('');
-  const latest = useRef(0);
+  const [drawer, setDrawer] = useState(null); // null or { transaction, type }
 
-  useEffect(() => {
-    if (!toast) return undefined;
-    const id = setTimeout(() => setToast(''), 2600);
-    return () => clearTimeout(id);
-  }, [toast]);
-
-  // Always fetch list and summaries together so they never disagree
+  // Load the list and the summary together so they never disagree
   const refresh = useCallback(async (m) => {
-    const id = ++latest.current;
     setLoading(true);
     setError('');
     try {
-      const [list, sum, prev, accts, buds, gls, rems, ov] = await Promise.all([
-        getTransactions(m),
-        getSummary(m),
-        getSummary(shiftMonth(m, -1)).catch(() => null), // comparison is optional
-        getAccounts(),
-        getBudgets(),
-        getGoals(),
-        getReminders(),
-        getOverview(),
-      ]);
-      if (id !== latest.current) return; // a newer request replaced this one
+      const [list, sum, b] = await Promise.all([getTransactions(m), getSummary(m), getBudget()]);
       setTransactions(list);
       setSummary(sum);
-      setPrevSummary(prev);
-      setAccounts(accts);
-      setBudgets(buds);
-      setGoals(gls);
-      setReminders(rems);
-      setOverview(ov);
+      setBudget(b.limit);
     } catch (err) {
-      if (id === latest.current) setError(err.message);
+      setError(err.message);
     } finally {
-      if (id === latest.current) setLoading(false);
+      setLoading(false);
     }
   }, []);
 
@@ -96,128 +52,53 @@ export default function App() {
     refresh(month);
   }, [month, refresh]);
 
-  const closeDrawer = useCallback(() => setDrawer(null), []);
-
   async function handleSave(data) {
-    const editing = drawer?.kind === 'transaction' ? drawer.transaction : null;
-    if (editing) await updateTransaction(editing._id, data);
+    if (drawer.transaction) await updateTransaction(drawer.transaction._id, data);
     else await createTransaction(data);
-
     setDrawer(null);
-    setToast(editing ? 'Transaction updated' : 'Transaction added');
     const savedMonth = data.date.slice(0, 7);
     if (savedMonth === month) await refresh(month);
     else setMonth(savedMonth); // jump to the month that now holds the transaction
   }
 
   async function handleDelete(t) {
-    const label = `${t.category} ${formatMoney(t.amount)} on ${formatDate(t.date)}`;
-    if (!window.confirm(`Delete this transaction?\n${label}`)) return;
+    if (!window.confirm(`Delete ${t.category} ${formatMoney(t.amount)} on ${formatDate(t.date)}?`)) return;
     try {
       await deleteTransaction(t._id);
-      setToast('Transaction deleted');
       await refresh(month);
     } catch (err) {
       setError(err.message);
     }
   }
 
-  async function handleSaveAccount(data) {
-    const editing = drawer?.kind === 'account' ? drawer.account : null;
-    if (editing) await updateAccount(editing._id, data);
-    else await createAccount(data);
-    setDrawer(null);
-    setToast(editing ? 'Account updated' : 'Account added');
-    await refresh(month);
+  async function handleBudget(limit) {
+    const saved = await saveBudget(limit);
+    setBudget(saved.limit);
   }
-
-  async function handleDeleteAccount(a) {
-    const linked = a.transactionCount
-      ? `\n${a.transactionCount} linked transaction${a.transactionCount === 1 ? '' : 's'} will be kept but unlinked.`
-      : '';
-    if (!window.confirm(`Delete the account "${a.name}"?${linked}`)) return;
-    try {
-      await deleteAccount(a._id);
-      setToast('Account deleted');
-      await refresh(month);
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  async function handlePayBill(r) {
-    try {
-      await payReminder(r._id, {});
-      setToast(`${r.title} paid and recorded`);
-      await refresh(month);
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  const overallBudget = budgets.find((b) => b.category === 'ALL')?.limit || 0;
-
-  // Real total balance: every account's balance plus the net of transactions not linked to any account.
-  // This equals all opening balances + all income - all expense, so nothing is ever left out.
-  const unlinkedNet = overview.unlinkedIncome - overview.unlinkedExpense;
-  const totalBalance = accounts.reduce((s, a) => s + a.balance, 0) + unlinkedNet;
 
   const actions = {
-    setMonth,
-    payBill: handlePayBill,
-    seeBills: () => {
-      setPlanTab('bills');
-      setView('plan');
-    },
-    openPlan: () => {
-      setPlanTab('budgets');
-      setView('plan');
-    },
-    add: (type) => setDrawer({ kind: 'transaction', transaction: null, type: type === 'income' ? 'income' : 'expense' }),
-    edit: (t) => setDrawer({ kind: 'transaction', transaction: t }),
-    addAccount: () => setDrawer({ kind: 'account', account: null }),
-    editAccount: (a) => setDrawer({ kind: 'account', account: a }),
-    removeAccount: handleDeleteAccount,
-    seeAccounts: () => setView('accounts'),
+    add: (type) => setDrawer({ transaction: null, type: type === 'income' ? 'income' : 'expense' }),
+    edit: (t) => setDrawer({ transaction: t }),
     remove: handleDelete,
     seeAll: () => setView('transactions'),
-    openSettings: () => setView('settings'),
-    notify: (message) => setToast(message),
+    saveBudget: handleBudget,
   };
 
   const defaultDate = month === currentMonth() ? todayISO() : `${month}-01`;
-  const titles = {
-    dashboard: [`${greeting()}, ${user.name.split(' ')[0]}`, `Here is your ${monthLabel(month)} overview`],
-    transactions: ['Transactions', `Everything for ${monthLabel(month)}`],
-    accounts: ['Accounts', 'Your banks, cards and wallets'],
-    plan: ['Plan', `Budgets, goals and bills for ${monthLabel(month)}`],
-    insights: ['Insights', `How ${monthLabel(month)} looks`],
-    settings: ['Settings', 'Make it yours'],
-  };
-  const [title, subtitle] = titles[view];
+  const title =
+    view === 'dashboard' ? `${greeting()}, ${user.name.split(' ')[0]}` : 'Transactions';
 
   return (
     <div className="shell">
-      <Nav
-        view={view}
-        onView={setView}
-        onAdd={() => actions.add()}
-        dark={dark}
-        onToggleTheme={toggleTheme}
-        user={user}
-        onLogout={logout}
-      />
+      <Nav view={view} onView={setView} onAdd={() => actions.add()} dark={dark} onToggleTheme={toggleTheme} user={user} onLogout={logout} />
 
       <div className="content">
-        <button type="button" className="icon-btn topbar-settings" aria-label="Settings" onClick={() => setView('settings')}>
-          <Icon name="sliders" size={20} />
-        </button>
         <header className="topbar">
           <div>
             <h1>{title}</h1>
-            <p className="sub">{subtitle}</p>
+            <p className="sub">Your {monthLabel(month)} overview</p>
           </div>
-          {view !== 'settings' && view !== 'accounts' && <MonthPicker month={month} onChange={setMonth} loading={loading} />}
+          <MonthPicker month={month} onChange={setMonth} loading={loading} />
         </header>
 
         {error && (
@@ -228,82 +109,25 @@ export default function App() {
         )}
 
         <div className="view" key={view}>
-        {view === 'dashboard' && (
-          <Dashboard
-            summary={summary}
-            prevSummary={prevSummary}
-            transactions={transactions}
-            loading={loading}
-            month={month}
-            budget={overallBudget}
-            reminders={reminders}
-            totalBalance={totalBalance}
-            overview={overview}
-            dark={dark}
-            accounts={accounts}
-            actions={actions}
-          />
-        )}
-        {view === 'transactions' && (
-          <Transactions transactions={transactions} accounts={accounts} loading={loading} month={month} actions={actions} />
-        )}
-        {view === 'accounts' && <Accounts
-            accounts={accounts}
-            overview={overview}
-            totalBalance={totalBalance}
-            holder={user.name}
-            loading={loading}
-            actions={actions}
-          />}
-        {view === 'plan' && (
-          <Plan
-            tab={planTab}
-            onTab={setPlanTab}
-            summary={summary}
-            budgets={budgets}
-            goals={goals}
-            reminders={reminders}
-            onChanged={(message) => {
-              if (message) setToast(message);
-              refresh(month);
-            }}
-            onError={setError}
-          />
-        )}
-        {view === 'insights' && (
-          <Insights summary={summary} transactions={transactions} month={month} budget={overallBudget} dark={dark} />
-        )}
-        {view === 'settings' && <Settings dark={dark} onToggleTheme={toggleTheme} onOpenPlan={actions.openPlan} />}
+          {view === 'dashboard' && (
+            <Dashboard summary={summary} transactions={transactions} loading={loading} budget={budget} dark={dark} actions={actions} />
+          )}
+          {view === 'transactions' && <Transactions transactions={transactions} loading={loading} actions={actions} />}
         </div>
       </div>
 
-      {drawer && drawer.kind === 'account' && (
-        <Drawer title={drawer.account ? 'Edit account' : 'New account'} onClose={closeDrawer}>
-          <AccountForm
-            key={drawer.account?._id || 'new-account'}
-            account={drawer.account}
-            onSave={handleSaveAccount}
-            onCancel={closeDrawer}
-          />
-        </Drawer>
-      )}
-
-      {drawer && drawer.kind === 'transaction' && (
-        <Drawer title={drawer.transaction ? 'Edit transaction' : 'New transaction'} onClose={closeDrawer}>
+      {drawer && (
+        <Drawer title={drawer.transaction ? 'Edit transaction' : 'New transaction'} onClose={() => setDrawer(null)}>
           <TransactionForm
             key={drawer.transaction?._id || 'new'}
             transaction={drawer.transaction}
-            accounts={accounts}
             defaultDate={defaultDate}
             defaultType={drawer.type}
-            onAddAccount={actions.addAccount}
             onSave={handleSave}
-            onCancel={closeDrawer}
+            onCancel={() => setDrawer(null)}
           />
         </Drawer>
       )}
-
-      {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   );
 }

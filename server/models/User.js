@@ -18,6 +18,7 @@ const userSchema = new mongoose.Schema(
       match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Enter a valid email address'],
     },
     passwordHash: { type: String, required: true, select: false },
+    budget: { type: Number, default: 0, min: 0 }, // monthly spending limit, 0 = not set
   },
   { timestamps: true }
 );

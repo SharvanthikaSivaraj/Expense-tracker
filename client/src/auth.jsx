@@ -54,7 +54,6 @@ export function AuthProvider({ children }) {
       user,
       status,
       notice,
-      setUser,
       authenticate,
       logout: () => logout(),
     }),
