@@ -1,7 +1,4 @@
 import axios from 'axios';
-import { getToken, notifyUnauthorized } from './token';
-
-export { getToken, setToken, setUnauthorizedHandler } from './token';
 
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5001/api',
@@ -9,41 +6,33 @@ const http = axios.create({
 
 // Send the login token with every request
 http.interceptors.request.use((config) => {
-  const token = getToken();
+  const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// An expired or rejected token logs the user out
+// If the token is rejected, log out
 http.interceptors.response.use(
-  (res) => res,
+  (res) => res.data,
   (err) => {
-    if (err.response?.status === 401 && getToken()) notifyUnauthorized();
-    return Promise.reject(err);
+    if (err.response?.status === 401 && localStorage.getItem('token')) {
+      localStorage.removeItem('token');
+      window.location.reload();
+    }
+    const message = err.response?.data?.error || 'Cannot reach the server';
+    return Promise.reject(new Error(message));
   }
 );
 
-// Turn any failure into a plain Error with a readable message
-function fail(err) {
-  const message =
-    err.response?.data?.error ||
-    (err.request ? 'Cannot reach the server. Is the backend running?' : err.message);
-  const error = new Error(message);
-  error.status = err.response?.status;
-  throw error;
-}
+export const register = (body) => http.post('/auth/register', body);
+export const login = (body) => http.post('/auth/login', body);
+export const getMe = () => http.get('/auth/me');
 
-const data = (promise) => promise.then((r) => r.data).catch(fail);
+export const getTransactions = (month) => http.get('/transactions', { params: { month } });
+export const getSummary = (month) => http.get('/transactions/summary', { params: { month } });
+export const createTransaction = (body) => http.post('/transactions', body);
+export const updateTransaction = (id, body) => http.put(`/transactions/${id}`, body);
+export const deleteTransaction = (id) => http.delete(`/transactions/${id}`);
 
-export const register = (body) => data(http.post('/auth/register', body));
-export const login = (body) => data(http.post('/auth/login', body));
-export const getMe = () => data(http.get('/auth/me'));
-
-export const getTransactions = (month) => data(http.get('/transactions', { params: { month } }));
-export const getSummary = (month) => data(http.get('/transactions/summary', { params: { month } }));
-export const createTransaction = (body) => data(http.post('/transactions', body));
-export const updateTransaction = (id, body) => data(http.put(`/transactions/${id}`, body));
-export const deleteTransaction = (id) => data(http.delete(`/transactions/${id}`));
-
-export const getBudget = () => data(http.get('/budget'));
-export const setBudget = (limit) => data(http.put('/budget', { limit }));
+export const getBudget = () => http.get('/budget');
+export const setBudget = (limit) => http.put('/budget', { limit });

@@ -1,130 +1,101 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   createTransaction,
   deleteTransaction,
   getBudget,
   getSummary,
   getTransactions,
-  setBudget as saveBudget,
+  setBudget,
   updateTransaction,
 } from './api';
-import { useAuth } from './auth';
-import { currentMonth, formatDate, formatMoney, greeting, monthLabel, todayISO } from './constants';
-import Drawer from './components/Drawer';
-import MonthPicker from './components/MonthPicker';
-import Nav from './components/Nav';
+import { currentMonth, formatDate, formatMoney, today } from './constants';
+import BudgetCard from './components/BudgetCard';
+import CategoryChart from './components/CategoryChart';
 import TransactionForm from './components/TransactionForm';
-import Dashboard from './views/Dashboard';
-import Transactions from './views/Transactions';
+import TransactionList from './components/TransactionList';
 
-const EMPTY_SUMMARY = { income: 0, expense: 0, balance: 0, byCategory: [] };
-
-export default function App() {
-  const { user, logout } = useAuth();
-  const [view, setView] = useState('dashboard');
-  const [month, setMonth] = useState(currentMonth);
+export default function App({ user, onLogout }) {
+  const [month, setMonth] = useState(currentMonth());
   const [transactions, setTransactions] = useState([]);
-  const [summary, setSummary] = useState(EMPTY_SUMMARY);
-  const [budget, setBudget] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState({ income: 0, expense: 0, balance: 0, byCategory: [] });
+  const [budget, setBudgetLimit] = useState(0);
+  const [form, setForm] = useState(null); // null = hidden, {} = new, transaction = editing
   const [error, setError] = useState('');
-  const [drawer, setDrawer] = useState(null); // null or { transaction, type }
 
-  // Load the list and the summary together so they never disagree
-  const refresh = useCallback(async (m) => {
-    setLoading(true);
-    setError('');
+  async function load() {
     try {
-      const [list, sum, b] = await Promise.all([getTransactions(m), getSummary(m), getBudget()]);
+      const [list, sum, b] = await Promise.all([getTransactions(month), getSummary(month), getBudget()]);
       setTransactions(list);
       setSummary(sum);
-      setBudget(b.limit);
+      setBudgetLimit(b.limit);
+      setError('');
     } catch (err) {
       setError(err.message);
-    } finally {
-      setLoading(false);
     }
-  }, []);
+  }
 
   useEffect(() => {
-    refresh(month);
-  }, [month, refresh]);
+    load();
+  }, [month]);
 
-  async function handleSave(data) {
-    if (drawer.transaction) await updateTransaction(drawer.transaction._id, data);
+  async function save(data) {
+    if (form._id) await updateTransaction(form._id, data);
     else await createTransaction(data);
-    setDrawer(null);
-    const savedMonth = data.date.slice(0, 7);
-    if (savedMonth === month) await refresh(month);
-    else setMonth(savedMonth); // jump to the month that now holds the transaction
+    setForm(null);
+    if (data.date.slice(0, 7) === month) load();
+    else setMonth(data.date.slice(0, 7)); // show the month the transaction was added to
   }
 
-  async function handleDelete(t) {
+  async function remove(t) {
     if (!window.confirm(`Delete ${t.category} ${formatMoney(t.amount)} on ${formatDate(t.date)}?`)) return;
-    try {
-      await deleteTransaction(t._id);
-      await refresh(month);
-    } catch (err) {
-      setError(err.message);
-    }
+    await deleteTransaction(t._id);
+    load();
   }
 
-  async function handleBudget(limit) {
-    const saved = await saveBudget(limit);
-    setBudget(saved.limit);
+  async function saveBudget(limit) {
+    const saved = await setBudget(limit);
+    setBudgetLimit(saved.limit);
   }
-
-  const actions = {
-    add: (type) => setDrawer({ transaction: null, type: type === 'income' ? 'income' : 'expense' }),
-    edit: (t) => setDrawer({ transaction: t }),
-    remove: handleDelete,
-    seeAll: () => setView('transactions'),
-    saveBudget: handleBudget,
-  };
-
-  const defaultDate = month === currentMonth() ? todayISO() : `${month}-01`;
-  const title = view === 'dashboard' ? `${greeting()}, ${user.name.split(' ')[0]}` : 'Transactions';
 
   return (
-    <div className="shell">
-      <Nav view={view} onView={setView} onAdd={() => actions.add()} user={user} onLogout={logout} />
+    <div className="page">
+      <header>
+        <h1>Expense Tracker</h1>
+        <span>
+          {user.name} <button onClick={onLogout}>Log out</button>
+        </span>
+      </header>
 
-      <div className="content">
-        <header className="topbar">
-          <div>
-            <h1>{title}</h1>
-            <p className="sub">Your {monthLabel(month)} overview</p>
-          </div>
-          <MonthPicker month={month} onChange={setMonth} loading={loading} />
-        </header>
+      <p>
+        Month: <input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} />
+      </p>
 
-        {error && (
-          <div className="banner error" role="alert">
-            <span>{error}</span>
-            <button type="button" className="btn" onClick={() => refresh(month)}>Retry</button>
-          </div>
-        )}
+      {error && <p className="error">{error}</p>}
 
-        <div className="view" key={view}>
-          {view === 'dashboard' && (
-            <Dashboard summary={summary} transactions={transactions} loading={loading} budget={budget} actions={actions} />
-          )}
-          {view === 'transactions' && <Transactions transactions={transactions} loading={loading} actions={actions} />}
-        </div>
+      <div className="summary">
+        <div className="box">Income<b className="income">{formatMoney(summary.income)}</b></div>
+        <div className="box">Expense<b className="expense">{formatMoney(summary.expense)}</b></div>
+        <div className="box">Balance<b>{formatMoney(summary.balance)}</b></div>
       </div>
 
-      {drawer && (
-        <Drawer title={drawer.transaction ? 'Edit transaction' : 'New transaction'} onClose={() => setDrawer(null)}>
-          <TransactionForm
-            key={drawer.transaction?._id || 'new'}
-            transaction={drawer.transaction}
-            defaultDate={defaultDate}
-            defaultType={drawer.type}
-            onSave={handleSave}
-            onCancel={() => setDrawer(null)}
-          />
-        </Drawer>
+      <div className="two">
+        <BudgetCard spent={summary.expense} budget={budget} onSave={saveBudget} />
+        <CategoryChart categories={summary.byCategory} />
+      </div>
+
+      <h2>Transactions</h2>
+      {form ? (
+        <TransactionForm
+          key={form._id || 'new'}
+          transaction={form._id ? form : null}
+          defaultDate={month === currentMonth() ? today() : `${month}-01`}
+          onSave={save}
+          onCancel={() => setForm(null)}
+        />
+      ) : (
+        <button onClick={() => setForm({})}>Add transaction</button>
       )}
+      <TransactionList transactions={transactions} onEdit={setForm} onDelete={remove} />
     </div>
   );
 }

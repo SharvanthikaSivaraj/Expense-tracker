@@ -1,72 +1,38 @@
 import { useState } from 'react';
 import { formatMoney } from '../constants';
 
-export default function BudgetCard({ expense, budget, onSave }) {
-  const [editing, setEditing] = useState(false);
+export default function BudgetCard({ spent, budget, onSave }) {
   const [value, setValue] = useState('');
-  const [error, setError] = useState('');
+  const [editing, setEditing] = useState(false);
 
   async function submit(e) {
     e.preventDefault();
-    try {
-      await onSave(Number(value) || 0);
-      setEditing(false);
-      setError('');
-    } catch (err) {
-      setError(err.message);
-    }
+    await onSave(Number(value) || 0);
+    setEditing(false);
   }
 
-  const ratio = budget ? expense / budget : 0;
-  const state = ratio > 1 ? 'over' : ratio >= 0.75 ? 'warn' : 'ok';
-  const left = budget - expense;
-
   return (
-    <section className="panel budget">
-      <h2>Monthly budget</h2>
-
-      {editing ? (
-        <form className="form" onSubmit={submit}>
-          <input
-            type="number"
-            min="0"
-            placeholder="Monthly limit, e.g. 20000"
-            aria-label="Monthly budget"
-            autoFocus
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-          />
-          {error && <p className="error">{error}</p>}
-          <div className="form-actions">
-            <button type="button" className="btn" onClick={() => setEditing(false)}>Cancel</button>
-            <button type="submit" className="btn primary">Save</button>
-          </div>
-        </form>
-      ) : (
+    <div className="box">
+      <h3>Monthly budget</h3>
+      {budget > 0 && (
         <>
-          {budget > 0 && (
-            <>
-              <strong className={state === 'over' ? 'expense' : ''}>
-                {left >= 0 ? `${formatMoney(left)} left` : `Over by ${formatMoney(-left)}`}
-              </strong>
-              <progress value={Math.min(ratio, 1)} max="1" aria-label="Budget used" />
-              <span className="muted">
-                {formatMoney(expense)} of {formatMoney(budget)} spent
-              </span>
-            </>
-          )}
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              setValue(budget ? String(budget) : '');
-              setEditing(true);
-            }}
-          >
-            {budget ? 'Change budget' : 'Set budget'}
-          </button>
+          <progress value={Math.min(spent, budget)} max={budget} />
+          <p>
+            {formatMoney(spent)} of {formatMoney(budget)} spent
+            {spent > budget && <span className="expense"> (over budget)</span>}
+          </p>
         </>
       )}
-    </section>
+      {editing ? (
+        <form onSubmit={submit}>
+          <input type="number" min="0" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+          <button>Save</button>
+        </form>
+      ) : (
+        <button onClick={() => { setValue(budget || ''); setEditing(true); }}>
+          {budget ? 'Change budget' : 'Set budget'}
+        </button>
+      )}
+    </div>
   );
 }

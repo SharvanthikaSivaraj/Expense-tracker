@@ -7,13 +7,12 @@ A MERN app to record daily income and expenses, sort them into categories, and s
 > The backend runs on a free Render plan, so the first request after a period of inactivity can take about 50 seconds.
 
 ## Features
-- Register and log in (bcrypt password hashing, JWT sessions); each user sees only their own data
+- Sign up and log in (bcrypt password hashing, JWT); each user sees only their own data
 - Add, edit and delete transactions (amount, income or expense, category, date, payment method, note)
-- View transactions for any month, with search and filters
-- Monthly summary (income, expense, balance) computed with MongoDB aggregation
-- Doughnut chart of expense by category, and a bar chart of income vs expense
+- Pick any month to see its transactions
+- Monthly income, expense and balance, computed with a MongoDB aggregation
+- Doughnut chart of expenses by category
 - One monthly budget with a progress bar
-- Light and dark themes, responsive layout
 
 ## Tech stack
 | Layer | Technology |
